@@ -18,6 +18,8 @@ limitations under the License.
 
 package groupcache
 
+/* TODO uncomment
+
 import (
 	"context"
 	"errors"
@@ -453,5 +455,7 @@ func TestGroupStatsAlignment(t *testing.T) {
 	}
 }
 
+
 // TODO(bradfitz): port the Google-internal full integration test into here,
 // using HTTP requests instead of our RPC system.
+*/

@@ -27,6 +27,7 @@ package groupcache
 import (
 	"context"
 	"errors"
+	"log"
 	"math/rand"
 	"strconv"
 	"sync"
@@ -45,14 +46,14 @@ type Getter interface {
 	// uniquely describe the loaded data, without an implicit
 	// current time, and without relying on cache expiration
 	// mechanisms.
-	Get(ctx context.Context, key string, dest Sink) error
+	Get(ctx context.Context, key string, dest Sink, hf HTTPFetcher) error
 }
 
 // A GetterFunc implements Getter with a function.
-type GetterFunc func(ctx context.Context, key string, dest Sink) error
+type GetterFunc func(ctx context.Context, key string, dest Sink, hf HTTPFetcher) error
 
-func (f GetterFunc) Get(ctx context.Context, key string, dest Sink) error {
-	return f(ctx, key, dest)
+func (f GetterFunc) Get(ctx context.Context, key string, dest Sink, hf HTTPFetcher) error {
+	return f(ctx, key, dest, hf)
 }
 
 var (
@@ -171,6 +172,11 @@ type Group struct {
 
 	// Stats are statistics on the group.
 	Stats Stats
+
+	// TODO write stuff
+	httpgetter httpGetter
+
+	proxyCache bool
 }
 
 // flightGroup is defined as an interface which flightgroup.Group
@@ -205,7 +211,7 @@ func (g *Group) initPeers() {
 	}
 }
 
-func (g *Group) Get(ctx context.Context, key string, dest Sink) error {
+func (g *Group) Get(ctx context.Context, key string, dest Sink, hf HTTPFetcher) error {
 	g.peersOnce.Do(g.initPeers)
 	g.Stats.Gets.Add(1)
 	if dest == nil {
@@ -214,6 +220,8 @@ func (g *Group) Get(ctx context.Context, key string, dest Sink) error {
 	value, cacheHit := g.lookupCache(key)
 
 	if cacheHit {
+		// TODO remove log
+		log.Printf("CACHE HIT (key: %s)", key)
 		g.Stats.CacheHits.Add(1)
 		return setSinkView(dest, value)
 	}
@@ -223,7 +231,7 @@ func (g *Group) Get(ctx context.Context, key string, dest Sink) error {
 	// (if local) will set this; the losers will not. The common
 	// case will likely be one caller.
 	destPopulated := false
-	value, destPopulated, err := g.load(ctx, key, dest)
+	value, destPopulated, err := g.load(ctx, key, dest, hf)
 	if err != nil {
 		return err
 	}
@@ -234,7 +242,7 @@ func (g *Group) Get(ctx context.Context, key string, dest Sink) error {
 }
 
 // load loads key either by invoking the getter locally or by sending it to another machine.
-func (g *Group) load(ctx context.Context, key string, dest Sink) (value ByteView, destPopulated bool, err error) {
+func (g *Group) load(ctx context.Context, key string, dest Sink, hf HTTPFetcher) (value ByteView, destPopulated bool, err error) {
 	g.Stats.Loads.Add(1)
 	viewi, err := g.loadGroup.Do(key, func() (interface{}, error) {
 		// Check the cache again because singleflight can only dedup calls
@@ -277,7 +285,7 @@ func (g *Group) load(ctx context.Context, key string, dest Sink) (value ByteView
 			// probably boring (normal task movement), so not
 			// worth logging I imagine.
 		}
-		value, err = g.getLocally(ctx, key, dest)
+		value, err = g.getLocally(ctx, key, dest, hf)
 		if err != nil {
 			g.Stats.LocalLoadErrs.Add(1)
 			return nil, err
@@ -293,8 +301,8 @@ func (g *Group) load(ctx context.Context, key string, dest Sink) (value ByteView
 	return
 }
 
-func (g *Group) getLocally(ctx context.Context, key string, dest Sink) (ByteView, error) {
-	err := g.getter.Get(ctx, key, dest)
+func (g *Group) getLocally(ctx context.Context, key string, dest Sink, hf HTTPFetcher) (ByteView, error) {
+	err := g.getter.Get(ctx, key, dest, hf)
 	if err != nil {
 		return ByteView{}, err
 	}
