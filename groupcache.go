@@ -46,13 +46,13 @@ type Getter interface {
 	// uniquely describe the loaded data, without an implicit
 	// current time, and without relying on cache expiration
 	// mechanisms.
-	Get(ctx context.Context, key string, dest Sink, pf ProxyFecher) error
+	Get(ctx context.Context, key string, dest Sink, pf ProxyFetcher) error
 }
 
 // A GetterFunc implements Getter with a function.
-type GetterFunc func(ctx context.Context, key string, dest Sink, pf ProxyFecher) error
+type GetterFunc func(ctx context.Context, key string, dest Sink, pf ProxyFetcher) error
 
-func (f GetterFunc) Get(ctx context.Context, key string, dest Sink, hf ProxyFecher) error {
+func (f GetterFunc) Get(ctx context.Context, key string, dest Sink, hf ProxyFetcher) error {
 	return f(ctx, key, dest, hf)
 }
 
@@ -211,7 +211,7 @@ func (g *Group) initPeers() {
 	}
 }
 
-func (g *Group) Get(ctx context.Context, key string, dest Sink, pf ProxyFecher) error {
+func (g *Group) Get(ctx context.Context, key string, dest Sink, pf ProxyFetcher) error {
 	g.peersOnce.Do(g.initPeers)
 	g.Stats.Gets.Add(1)
 	if dest == nil {
@@ -242,7 +242,7 @@ func (g *Group) Get(ctx context.Context, key string, dest Sink, pf ProxyFecher) 
 }
 
 // load loads key either by invoking the getter locally or by sending it to another machine.
-func (g *Group) load(ctx context.Context, key string, dest Sink, pf ProxyFecher) (value ByteView, destPopulated bool, err error) {
+func (g *Group) load(ctx context.Context, key string, dest Sink, pf ProxyFetcher) (value ByteView, destPopulated bool, err error) {
 	g.Stats.Loads.Add(1)
 	viewi, err := g.loadGroup.Do(key, func() (interface{}, error) {
 		// Check the cache again because singleflight can only dedup calls
@@ -301,7 +301,7 @@ func (g *Group) load(ctx context.Context, key string, dest Sink, pf ProxyFecher)
 	return
 }
 
-func (g *Group) getLocally(ctx context.Context, key string, dest Sink, pf ProxyFecher) (ByteView, error) {
+func (g *Group) getLocally(ctx context.Context, key string, dest Sink, pf ProxyFetcher) (ByteView, error) {
 	err := g.getter.Get(ctx, key, dest, pf)
 	if err != nil {
 		return ByteView{}, err

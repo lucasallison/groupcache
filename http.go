@@ -168,7 +168,7 @@ func (p *HTTPPool) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	group.Stats.ServerRequests.Add(1)
 	var value []byte
 	// TODO this is not right...
-	err := group.Get(ctx, key, AllocatingByteSliceSink(&value), ProxyFecher{})
+	err := group.Get(ctx, key, AllocatingByteSliceSink(&value), ProxyFetcher{})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

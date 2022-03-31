@@ -17,7 +17,9 @@ limitations under the License.
 // Package lru implements an LRU cache.
 package lru
 
-import "container/list"
+import (
+	"container/list"
+)
 
 // Cache is an LRU cache. It is not safe for concurrent access.
 type Cache struct {
