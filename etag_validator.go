@@ -7,6 +7,7 @@ import (
 	"encoding/gob"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"sync"
 )
@@ -50,99 +51,133 @@ func GetRemote(g *Group, ctx context.Context, key string, pf ProxyFetcher) error
 
 		b := []byte{}
 		dest := AllocatingByteSliceSink(&b)
-		/* NOT MODIFIED: load from cache */
+
+		/* NOT MODIFIED: try to load from cache */
 		if r.StatusCode == http.StatusNotModified {
 
-			// we want to read the body right away
-			value, destPopulated, err := g.load(ctx, key, dest)
+			value, cacheHit := g.lookupCache(key)
 
-			if err != nil {
-				return err
-			}
-			// TODO ...?
-			if destPopulated {
-				return nil
-			}
+			if cacheHit {
+				/* CACHE HIT: try to load from cache */
+				log.Println("CACHE HIT! For ", key)
 
-			// write to cachedBody variable
-			err = setSinkView(dest, value)
-			if err != nil {
-				return err
-			}
+				// will write the bytes into b
+				err := setSinkView(dest, value)
+				if err != nil {
+					replaceWithInternalServerError(r)
+					return err
+				}
 
-			/* decode cached response */
-			cr := CachedResponse{}
-			dec := gob.NewDecoder(bytes.NewReader(b))
-			err = dec.Decode(&cr)
-			if err != nil {
-				r.StatusCode = http.StatusInternalServerError
-				// TODO make this better ...
-				r.Body = nil
-				return err
-			}
+				cr, err := decodeResponse(b)
+				if err != nil {
+					replaceWithInternalServerError(r)
+					return err
+				}
 
-			/* clear existing headers */
-			r.Header = make(http.Header)
-
-			/* set cached headers */
-			for name, values := range cr.Header {
-				for _, value := range values {
-					r.Header.Set(name, value)
+				err = replaceResponse(r, cr)
+				if err != nil {
+					return err
 				}
 			}
 
-			/* replace existing body with cached body */
-			r.Body = io.NopCloser(bytes.NewReader(cr.Body))
+			/* CACHE MISS: update cache with fetched data */
+			log.Println("CACHE MISS! For ", key)
 
-			/* replace existing status code with cached status code */
-			r.StatusCode = cr.StatusCode
-
-			/* status??? */
-			// r.status = ...
-
-			return nil
 		}
 
 		/* OBJECT MODIFIED: update cache */
+		log.Println("Updating: ", key)
 
-		/* read body */
-		defer r.Body.Close()
-		respbody, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			return err
-		}
-		r.Body = ioutil.NopCloser(bytes.NewBuffer(respbody))
-
-		/* encode */
-		cr := CachedResponse{
-			StatusCode: r.StatusCode,
-			Header:     r.Header,
-			Body:       respbody,
-		}
-
-		buf := bytes.Buffer{}
-		enc := gob.NewEncoder(&buf)
-		err = enc.Encode(cr)
+		encResp, err := encodeResponse(r)
 		if err != nil {
 			return err
 		}
 
-		err = dest.SetBytes(buf.Bytes())
-		if err != nil {
-			return err
-		}
-
-		value, err := dest.view()
-		if err != nil {
-			return err
-		}
-
-		// TODO see line 298 of groupecache. We cant only call this function...
-		g.populateCache(key, value, &g.mainCache)
-		return nil
+		return writeToCache(g, key, dest, *encResp)
 	}
 
 	pf.Proxy.ServeHTTP(pf.Writer, pf.Req)
+
+	return nil
+}
+
+func replaceWithInternalServerError(r *http.Response) {
+	r.StatusCode = http.StatusInternalServerError
+	// TODO make this better ...
+	r.Body = nil
+}
+
+func replaceResponse(r *http.Response, cr *CachedResponse) error {
+	/* clear existing headers */
+	r.Header = make(http.Header)
+
+	/* set cached headers */
+	for name, values := range cr.Header {
+		for _, value := range values {
+			r.Header.Set(name, value)
+		}
+	}
+
+	/* replace existing body with cached body */
+	r.Body = io.NopCloser(bytes.NewReader(cr.Body))
+
+	/* replace existing status code with cached status code */
+	r.StatusCode = cr.StatusCode
+
+	/* status??? */
+	// r.status = ...
+
+	return nil
+}
+
+func decodeResponse(b []byte) (*CachedResponse, error) {
+	/* decode cached response */
+	cr := CachedResponse{}
+	dec := gob.NewDecoder(bytes.NewReader(b))
+	err := dec.Decode(&cr)
+	return &cr, err
+}
+
+func encodeResponse(r *http.Response) (*[]byte, error) {
+	/* read body */
+	defer r.Body.Close()
+	respbody, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return nil, err
+	}
+	r.Body = ioutil.NopCloser(bytes.NewBuffer(respbody))
+
+	/* encode */
+	cr := CachedResponse{
+		StatusCode: r.StatusCode,
+		Header:     r.Header,
+		Body:       respbody,
+	}
+
+	buf := bytes.Buffer{}
+	enc := gob.NewEncoder(&buf)
+	err = enc.Encode(cr)
+	if err != nil {
+		return nil, err
+	}
+
+	encodedResponse := buf.Bytes()
+	return &encodedResponse, nil
+}
+
+func writeToCache(g *Group, key string, dest Sink, b []byte) error {
+	err := dest.SetBytes(b)
+	if err != nil {
+		return err
+	}
+
+	value, err := dest.view()
+	if err != nil {
+		return err
+	}
+
+	// TODO see line 298 of groupecache. We cant only call this function...
+	g.populateCache(key, value, &g.mainCache)
 
 	return nil
 }
