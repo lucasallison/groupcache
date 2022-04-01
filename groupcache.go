@@ -27,7 +27,6 @@ package groupcache
 import (
 	"context"
 	"errors"
-	"log"
 	"math/rand"
 	"strconv"
 	"sync"
@@ -46,14 +45,14 @@ type Getter interface {
 	// uniquely describe the loaded data, without an implicit
 	// current time, and without relying on cache expiration
 	// mechanisms.
-	Get(ctx context.Context, key string, dest Sink, pf ProxyFetcher) error
+	Get(ctx context.Context, key string, dest Sink) error
 }
 
 // A GetterFunc implements Getter with a function.
-type GetterFunc func(ctx context.Context, key string, dest Sink, pf ProxyFetcher) error
+type GetterFunc func(ctx context.Context, key string, dest Sink) error
 
-func (f GetterFunc) Get(ctx context.Context, key string, dest Sink, hf ProxyFetcher) error {
-	return f(ctx, key, dest, hf)
+func (f GetterFunc) Get(ctx context.Context, key string, dest Sink) error {
+	return f(ctx, key, dest)
 }
 
 var (
@@ -173,8 +172,9 @@ type Group struct {
 	// Stats are statistics on the group.
 	Stats Stats
 
-	// TODO write stuff
-	httpgetter httpGetter
+	// TODO write some stuff
+	// TODO naming??
+	validator *Validator
 
 	proxyCache bool
 }
@@ -217,11 +217,15 @@ func (g *Group) Get(ctx context.Context, key string, dest Sink, pf ProxyFetcher)
 	if dest == nil {
 		return errors.New("groupcache: nil dest Sink")
 	}
+
+	// TODO validate e tag here
+	if g.proxyCache {
+		return GetRemote(g, ctx, key, pf)
+	}
+
 	value, cacheHit := g.lookupCache(key)
 
 	if cacheHit {
-		// TODO remove log
-		log.Printf("CACHE HIT (key: %s)", key)
 		g.Stats.CacheHits.Add(1)
 		return setSinkView(dest, value)
 	}
@@ -231,7 +235,7 @@ func (g *Group) Get(ctx context.Context, key string, dest Sink, pf ProxyFetcher)
 	// (if local) will set this; the losers will not. The common
 	// case will likely be one caller.
 	destPopulated := false
-	value, destPopulated, err := g.load(ctx, key, dest, pf)
+	value, destPopulated, err := g.load(ctx, key, dest)
 	if err != nil {
 		return err
 	}
@@ -242,7 +246,7 @@ func (g *Group) Get(ctx context.Context, key string, dest Sink, pf ProxyFetcher)
 }
 
 // load loads key either by invoking the getter locally or by sending it to another machine.
-func (g *Group) load(ctx context.Context, key string, dest Sink, pf ProxyFetcher) (value ByteView, destPopulated bool, err error) {
+func (g *Group) load(ctx context.Context, key string, dest Sink) (value ByteView, destPopulated bool, err error) {
 	g.Stats.Loads.Add(1)
 	viewi, err := g.loadGroup.Do(key, func() (interface{}, error) {
 		// Check the cache again because singleflight can only dedup calls
@@ -285,7 +289,7 @@ func (g *Group) load(ctx context.Context, key string, dest Sink, pf ProxyFetcher
 			// probably boring (normal task movement), so not
 			// worth logging I imagine.
 		}
-		value, err = g.getLocally(ctx, key, dest, pf)
+		value, err = g.getLocally(ctx, key, dest)
 		if err != nil {
 			g.Stats.LocalLoadErrs.Add(1)
 			return nil, err
@@ -301,8 +305,8 @@ func (g *Group) load(ctx context.Context, key string, dest Sink, pf ProxyFetcher
 	return
 }
 
-func (g *Group) getLocally(ctx context.Context, key string, dest Sink, pf ProxyFetcher) (ByteView, error) {
-	err := g.getter.Get(ctx, key, dest, pf)
+func (g *Group) getLocally(ctx context.Context, key string, dest Sink) (ByteView, error) {
+	err := g.getter.Get(ctx, key, dest)
 	if err != nil {
 		return ByteView{}, err
 	}
