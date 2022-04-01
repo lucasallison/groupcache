@@ -211,16 +211,11 @@ func (g *Group) initPeers() {
 	}
 }
 
-func (g *Group) Get(ctx context.Context, key string, dest Sink, pf ProxyFetcher) error {
+func (g *Group) Get(ctx context.Context, key string, dest Sink) error {
 	g.peersOnce.Do(g.initPeers)
 	g.Stats.Gets.Add(1)
 	if dest == nil {
 		return errors.New("groupcache: nil dest Sink")
-	}
-
-	// TODO validate e tag here
-	if g.proxyCache {
-		return GetRemote(g, ctx, key, pf)
 	}
 
 	value, cacheHit := g.lookupCache(key)
