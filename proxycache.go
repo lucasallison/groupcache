@@ -24,15 +24,13 @@ type CachedResponse struct {
 	Body       []byte
 }
 
+var tagger *Etagger = NewTagger()
+
 func NewProxyCacheGroup(cacheBytes int64) *Group {
-	ng := NewGroup("pc", cacheBytes, GetterFunc(
+	return NewGroup("pc", cacheBytes, GetterFunc(
 		func(ctx Context, key string, dest Sink) error {
-			/* the validator acts as the getter */
 			return nil
 		}))
-	ng.proxyCache = true
-	ng.validator = NewValidator()
-	return ng
 }
 
 // TODO implement context?
@@ -44,7 +42,7 @@ func ProxyCacheGet(g *Group, ctx context.Context, key string, pf ProxyFetcher) e
 // TODO naming
 func getRemote(g *Group, ctx context.Context, key string, pf ProxyFetcher) error {
 	pf.Proxy.ModifyResponse = func(r *http.Response) error {
-
+		var cachehit, modified bool
 		b := []byte{}
 		dest := AllocatingByteSliceSink(&b)
 
@@ -52,39 +50,23 @@ func getRemote(g *Group, ctx context.Context, key string, pf ProxyFetcher) error
 		if r.StatusCode == http.StatusNotModified {
 
 			value, cacheHit := g.lookupCache(key)
-
 			if cacheHit {
 				/* CACHE HIT: try to load from cache */
-				log.Println("CACHE HIT! For ", key)
-
-				// will write the bytes into b
-				err := setSinkView(dest, value)
-				if err != nil {
-					replaceWithInternalServerError(r)
-					return err
-				}
-
-				cr, err := decodeResponse(b)
-				if err != nil {
-					replaceWithInternalServerError(r)
-					return err
-				}
-
-				err = replaceResponse(r, cr)
-				if err != nil {
-					return err
-				}
-				return nil
+				return processCacheHit(r, &b, dest, &value)
 			}
-
-			/* CACHE MISS: update cache with fetched data */
-			log.Println("CACHE MISS! For ", key)
 
 		}
 
-		/* OBJECT MODIFIED: update cache */
-		log.Println("Updating: ", key)
+		logInfo(cachehit, modified, key)
 
+		/* update ETag */
+		respbody, err := getBodyAsBytes(r)
+		if err != nil {
+			return err
+		}
+		tagger.SaveBodyAsTag(key, respbody)
+
+		/* OBJECT MODIFIED OR CACHE MISS: update cache */
 		encResp, err := encodeResponse(r)
 		if err != nil {
 			return err
@@ -93,11 +75,42 @@ func getRemote(g *Group, ctx context.Context, key string, pf ProxyFetcher) error
 		return writeToCache(g, key, dest, *encResp)
 	}
 
+	pf.Req.Header.Set("ETag", tagger.getEtag(key))
+
 	pf.Proxy.ServeHTTP(pf.Writer, pf.Req)
-	/* dont modify future results e.g. from post requests */
+	/* dont modify future results e.g. for post requests */
 	pf.Proxy.ModifyResponse = nil
 
 	return nil
+}
+
+// TODO ...
+func logInfo(cachehit bool, modified bool, key string) {
+	if cachehit {
+		log.Println("CACHE HIT! For ", key)
+	} else if !modified {
+		log.Println("CACHE MISS! Updating cache for ", key)
+	}
+
+	log.Println("MODIFIED! Updating cache for ", key)
+}
+
+func processCacheHit(r *http.Response, b *[]byte, dest Sink, value *ByteView) error {
+
+	/* will write the bytes of value into b*/
+	err := setSinkView(dest, *value)
+	if err != nil {
+		replaceWithInternalServerError(r)
+		return err
+	}
+
+	cr, err := decodeResponse(*b)
+	if err != nil {
+		replaceWithInternalServerError(r)
+		return err
+	}
+
+	return replaceResponse(r, cr)
 }
 
 func replaceWithInternalServerError(r *http.Response) {
@@ -138,19 +151,15 @@ func decodeResponse(b []byte) (*CachedResponse, error) {
 }
 
 func encodeResponse(r *http.Response) (*[]byte, error) {
-	/* read body */
-	defer r.Body.Close()
-	respbody, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		return nil, err
-	}
-	r.Body = ioutil.NopCloser(bytes.NewBuffer(respbody))
 
-	/* encode */
+	// TODO Do we want to pass this as a parameter?
+	respbody, err := getBodyAsBytes(r)
+
+	/* encode struct */
 	cr := CachedResponse{
 		StatusCode: r.StatusCode,
 		Header:     r.Header,
-		Body:       respbody,
+		Body:       *respbody,
 	}
 
 	buf := bytes.Buffer{}
@@ -162,6 +171,20 @@ func encodeResponse(r *http.Response) (*[]byte, error) {
 
 	encodedResponse := buf.Bytes()
 	return &encodedResponse, nil
+}
+
+func getBodyAsBytes(r *http.Response) (*[]byte, error) {
+
+	/* read body */
+	defer r.Body.Close()
+	respbody, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return nil, err
+	}
+	/* replace the cleared out body */
+	r.Body = ioutil.NopCloser(bytes.NewBuffer(respbody))
+
+	return &respbody, nil
 }
 
 func writeToCache(g *Group, key string, dest Sink, b []byte) error {

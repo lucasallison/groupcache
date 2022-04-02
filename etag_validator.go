@@ -5,35 +5,35 @@ import (
 	"sync"
 )
 
-type Validator struct {
+type Etagger struct {
 	mu sync.RWMutex
 	/* map from key to its hash */
 	hashes map[string][]byte
 }
 
-func NewValidator() *Validator {
-	v := Validator{}
+func NewTagger() *Etagger {
+	v := Etagger{}
 	v.hashes = make(map[string][]byte)
 	return &v
 }
 
-func (v *Validator) calcHash(b []byte) []byte {
+func (v *Etagger) calcHash(b *[]byte) []byte {
 	hasher := sha1.New()
-	hasher.Write(b)
+	hasher.Write(*b)
 	return hasher.Sum(nil)
 }
 
-func (v *Validator) SaveEtag(URI string, value string) {
+func (v *Etagger) SaveBodyAsTag(URI string, b *[]byte) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	v.hashes[URI] = v.calcHash([]byte(value))
+	v.hashes[URI] = v.calcHash(b)
 }
 
-func (v *Validator) getEtag(URI string) string {
+func (v *Etagger) getEtag(URI string) string {
 	return string(v.hashes[URI])
 }
 
 /* check if the supplied hash mathes the hash associated with the key */
-func (v *Validator) ValidateLocal(URI string, etag string) bool {
+func (v *Etagger) ValidateLocal(URI string, etag string) bool {
 	return v.getEtag(URI) == etag
 }

@@ -171,12 +171,6 @@ type Group struct {
 
 	// Stats are statistics on the group.
 	Stats Stats
-
-	// TODO write some stuff
-	// TODO naming??
-	validator *Validator
-
-	proxyCache bool
 }
 
 // flightGroup is defined as an interface which flightgroup.Group
