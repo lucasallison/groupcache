@@ -9,6 +9,8 @@ import (
 	"log"
 	"net/http"
 	"net/http/httputil"
+
+	tagger "github.com/lucasallison/ETagger"
 )
 
 type ProxyFetcher struct {
@@ -24,7 +26,7 @@ type CachedResponse struct {
 	Body       []byte
 }
 
-var tagger *Etagger = NewTagger()
+var et *tagger.ETagger = tagger.NewTagger()
 
 func NewProxyCacheGroup(cacheBytes int64) *Group {
 	return NewGroup("pc", cacheBytes, GetterFunc(
@@ -42,16 +44,22 @@ func ProxyCacheGet(g *Group, ctx context.Context, key string, pf ProxyFetcher) e
 // TODO naming
 func getRemote(g *Group, ctx context.Context, key string, pf ProxyFetcher) error {
 	pf.Proxy.ModifyResponse = func(r *http.Response) error {
-		var cachehit, modified bool
+
+		modified := true
+		cachehit := false
 		b := []byte{}
 		dest := AllocatingByteSliceSink(&b)
 
 		/* NOT MODIFIED: try to load from cache */
 		if r.StatusCode == http.StatusNotModified {
 
+			modified = false
+
 			value, cacheHit := g.lookupCache(key)
 			if cacheHit {
 				/* CACHE HIT: try to load from cache */
+
+				logInfo(cachehit, modified, key)
 				return processCacheHit(r, &b, dest, &value)
 			}
 
@@ -59,12 +67,13 @@ func getRemote(g *Group, ctx context.Context, key string, pf ProxyFetcher) error
 
 		logInfo(cachehit, modified, key)
 
+		// TODO should we base the etag on the entire request? not just the body?
 		/* update ETag */
 		respbody, err := getBodyAsBytes(r)
 		if err != nil {
 			return err
 		}
-		tagger.SaveBodyAsTag(key, respbody)
+		et.SaveBytesAsTag(key, respbody)
 
 		/* OBJECT MODIFIED OR CACHE MISS: update cache */
 		encResp, err := encodeResponse(r)
@@ -75,7 +84,7 @@ func getRemote(g *Group, ctx context.Context, key string, pf ProxyFetcher) error
 		return writeToCache(g, key, dest, *encResp)
 	}
 
-	pf.Req.Header.Set("ETag", tagger.getEtag(key))
+	pf.Req.Header.Set("ETag", et.GetEtag(key))
 
 	pf.Proxy.ServeHTTP(pf.Writer, pf.Req)
 	/* dont modify future results e.g. for post requests */
@@ -90,9 +99,9 @@ func logInfo(cachehit bool, modified bool, key string) {
 		log.Println("CACHE HIT! For ", key)
 	} else if !modified {
 		log.Println("CACHE MISS! Updating cache for ", key)
+	} else {
+		log.Println("MODIFIED! Updating cache for ", key)
 	}
-
-	log.Println("MODIFIED! Updating cache for ", key)
 }
 
 func processCacheHit(r *http.Response, b *[]byte, dest Sink, value *ByteView) error {
@@ -116,7 +125,7 @@ func processCacheHit(r *http.Response, b *[]byte, dest Sink, value *ByteView) er
 func replaceWithInternalServerError(r *http.Response) {
 	r.StatusCode = http.StatusInternalServerError
 	// TODO make this better ...
-	r.Body = nil
+	// r.Body = nil
 }
 
 func replaceResponse(r *http.Response, cr *CachedResponse) error {
