@@ -20,7 +20,7 @@ type ProxyWrapper struct {
 }
 
 // TODO add more fields? See the response struct
-type CachedResponse struct {
+type cachedResponse struct {
 	StatusCode int
 	Header     http.Header
 	Body       []byte
@@ -148,7 +148,7 @@ func replaceWithInternalServerError(r *http.Response) {
 	// r.Body = nil
 }
 
-func replaceResponse(r *http.Response, cr *CachedResponse) error {
+func replaceResponse(r *http.Response, cr *cachedResponse) error {
 	/* clear existing headers */
 	r.Header = make(http.Header)
 
@@ -171,9 +171,9 @@ func replaceResponse(r *http.Response, cr *CachedResponse) error {
 	return nil
 }
 
-func decodeResponse(b []byte) (*CachedResponse, error) {
+func decodeResponse(b []byte) (*cachedResponse, error) {
 	/* decode cached response */
-	cr := CachedResponse{}
+	cr := cachedResponse{}
 	dec := gob.NewDecoder(bytes.NewReader(b))
 	err := dec.Decode(&cr)
 	return &cr, err
@@ -184,7 +184,7 @@ func encodeResponse(r *http.Response) (*[]byte, error) {
 	respbody, err := getBodyAsBytes(r)
 
 	/* encode struct */
-	cr := CachedResponse{
+	cr := cachedResponse{
 		StatusCode: r.StatusCode,
 		Header:     r.Header,
 		Body:       *respbody,

@@ -27,6 +27,7 @@ package groupcache
 import (
 	"context"
 	"errors"
+	"log"
 	"math/rand"
 	"strconv"
 	"sync"
@@ -417,11 +418,14 @@ func (c *cache) add(key string, value ByteView) {
 				val := value.(ByteView)
 				c.nbytes -= int64(len(key.(string))) + int64(val.Len())
 				c.nevict++
+				// TODO remove
+				log.Println("Evicting: ", key)
 			},
 		}
 	}
 	c.lru.Add(key, value)
 	c.nbytes += int64(len(key)) + int64(value.Len())
+	log.Println("nbytes: ", c.nbytes)
 }
 
 func (c *cache) get(key string) (value ByteView, ok bool) {
