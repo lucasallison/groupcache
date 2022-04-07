@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package lru
+package operator
 
 import (
 	"fmt"
@@ -47,7 +47,7 @@ var getTests = []struct {
 
 func TestGet(t *testing.T) {
 	for _, tt := range getTests {
-		lru := New(0)
+		lru := NewLRU(0)
 		lru.Add(tt.keyToAdd, 1234)
 		val, ok := lru.Get(tt.keyToGet)
 		if ok != tt.expectedOk {
@@ -59,7 +59,7 @@ func TestGet(t *testing.T) {
 }
 
 func TestRemove(t *testing.T) {
-	lru := New(0)
+	lru := NewLRU(0)
 	lru.Add("myKey", 1234)
 	if val, ok := lru.Get("myKey"); !ok {
 		t.Fatal("TestRemove returned no match")
@@ -79,7 +79,7 @@ func TestEvict(t *testing.T) {
 		evictedKeys = append(evictedKeys, key)
 	}
 
-	lru := New(20)
+	lru := NewLRU(20)
 	lru.OnEvicted = onEvictedFun
 	for i := 0; i < 22; i++ {
 		lru.Add(fmt.Sprintf("myKey%d", i), 1234)

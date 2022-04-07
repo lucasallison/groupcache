@@ -34,7 +34,7 @@ import (
 	"sync/atomic"
 
 	pb "github.com/golang/groupcache/groupcachepb"
-	"github.com/golang/groupcache/lru"
+	"github.com/golang/groupcache/operator"
 	"github.com/golang/groupcache/singleflight"
 )
 
@@ -392,7 +392,7 @@ func (g *Group) CacheStats(which CacheType) CacheStats {
 type cache struct {
 	mu         sync.RWMutex
 	nbytes     int64 // of all keys and values
-	lru        *lru.Cache
+	op         operator.CacheOperator
 	nhit, nget int64
 	nevict     int64 // number of evictions
 }
@@ -412,9 +412,19 @@ func (c *cache) stats() CacheStats {
 func (c *cache) add(key string, value ByteView) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.lru == nil {
-		c.lru = &lru.Cache{
-			OnEvicted: func(key lru.Key, value interface{}) {
+	if c.op == nil {
+		/*
+			c.op = &operator.LRU{
+				OnEvicted: func(key operator.Key, value interface{}) {
+					val := value.(ByteView)
+					c.nbytes -= int64(len(key.(string))) + int64(val.Len())
+					c.nevict++
+					// TODO remove
+					log.Println("Evicting: ", key)
+				},
+		*/
+		c.op = &operator.LFU{
+			OnEvicted: func(key operator.Key, value interface{}) {
 				val := value.(ByteView)
 				c.nbytes -= int64(len(key.(string))) + int64(val.Len())
 				c.nevict++
@@ -423,8 +433,10 @@ func (c *cache) add(key string, value ByteView) {
 			},
 		}
 	}
-	c.lru.Add(key, value)
+	c.op.Add(key, value)
 	c.nbytes += int64(len(key)) + int64(value.Len())
+
+	// TODO remove
 	log.Println("nbytes: ", c.nbytes)
 }
 
@@ -432,10 +444,10 @@ func (c *cache) get(key string) (value ByteView, ok bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.nget++
-	if c.lru == nil {
+	if c.op == nil {
 		return
 	}
-	vi, ok := c.lru.Get(key)
+	vi, ok := c.op.Get(key)
 	if !ok {
 		return
 	}
@@ -446,8 +458,8 @@ func (c *cache) get(key string) (value ByteView, ok bool) {
 func (c *cache) removeOldest() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.lru != nil {
-		c.lru.RemoveOldest()
+	if c.op != nil {
+		c.op.RemoveBasedOnPolicy()
 	}
 }
 
@@ -464,10 +476,10 @@ func (c *cache) items() int64 {
 }
 
 func (c *cache) itemsLocked() int64 {
-	if c.lru == nil {
+	if c.op == nil {
 		return 0
 	}
-	return int64(c.lru.Len())
+	return int64(c.op.Len())
 }
 
 // An AtomicInt is an int64 to be accessed atomically.

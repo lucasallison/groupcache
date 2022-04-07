@@ -49,6 +49,10 @@ func (pc *ProxyCache) Get(ctx context.Context, proxy ProxyWrapper) error {
 
 	proxy.Proxy.ModifyResponse = func(r *http.Response) error {
 
+		if r.StatusCode >= http.StatusBadRequest {
+			return nil
+		}
+
 		modified := true
 		cachehit := false
 		cachedBytes := []byte{}
