@@ -20,6 +20,11 @@ func registerAccess(ll *list.List, el *list.Element) {
 	/* compare neighbours acces frequency with its own */
 	caf := el.Value.(*entry).accessFrequency
 	for {
+
+		if el.Next() == nil {
+			return
+		}
+
 		naf := el.Next().Value.(*entry).accessFrequency
 		if naf > caf {
 			return
