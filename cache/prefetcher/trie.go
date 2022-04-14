@@ -5,23 +5,6 @@ import (
 	"fmt"
 )
 
-var test = []string{
-	"D",
-	"E",
-	"F",
-	"A",
-	"B",
-	"C",
-	"D",
-	"E",
-	"F",
-	"G",
-	"D",
-	"E",
-	"F",
-	"K",
-}
-
 type node struct {
 	URI        string
 	AccessFreq int
@@ -88,9 +71,6 @@ func (t *Trie) buildTrie() {
 
 	t.savedTrace, _ = getUserTrace(t.uid)
 
-	/* we extend the saved request pattern */
-	t.curentTrace.writeData(&t.savedTrace)
-
 	t.root = newNode("root")
 
 	for i := 0; i < len(t.savedTrace); i++ {
@@ -116,6 +96,7 @@ func (t *Trie) addSuffix(pos int) {
 	}
 }
 
+// TODO refactor
 func (t *Trie) predictNext(recursive bool) {
 
 	trace := t.curentTrace.getDataAsSlice()
@@ -124,10 +105,15 @@ func (t *Trie) predictNext(recursive bool) {
 
 	fmt.Println(t.curentTrace.getDataAsSlice())
 
-	// TODO let lower bound
 	for i := 0; i < len(trace); i++ {
+
+		if len(trace)-i < MIN_URI_MATCHES {
+			break
+		}
+
 		currentNode = t.root
 		matched = true
+
 		fmt.Println("Matching: ", trace[i:])
 		for _, URI := range trace[i:] {
 			currentNode = currentNode.getChild(URI)

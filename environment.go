@@ -30,10 +30,19 @@ func RetrieveEnvFile() string {
 
 func GetHostFromEnv() string {
 	LoadEnv()
-	env, ok := os.LookupEnv("HOST")
+	val, ok := os.LookupEnv("HOST")
 	if !ok {
 		// TODO error?
 		return ""
 	}
-	return env
+	return val
+}
+
+func PrefetchingEnabled() bool {
+	LoadEnv()
+	val, ok := os.LookupEnv("PREFETCH")
+	if !ok {
+		return false
+	}
+	return val == "true"
 }

@@ -1,10 +1,7 @@
 package prefetcher
 
-// TODO make this size variable?
-const MAX_ENTRIES int = 5
-
 type circulairArray struct {
-	data [MAX_ENTRIES + 1]string
+	data [MAX_TRACE_SIZE + 1]string
 	/* index of the first entry */
 	start int
 	/* index of the first free spot */
@@ -17,12 +14,12 @@ func newCirculairArray() circulairArray {
 }
 
 func getNewPos(currPos int, dist int) int {
-	return (currPos + dist) % MAX_ENTRIES
+	return (currPos + dist) % MAX_TRACE_SIZE
 }
 
 func (ca *circulairArray) get(index int) string {
 	/* empty array or index out of range */
-	if ca.empty || index >= MAX_ENTRIES {
+	if ca.empty || index >= MAX_TRACE_SIZE {
 		return ""
 	}
 	return ca.data[getNewPos(ca.start, index)]
@@ -57,7 +54,7 @@ func (ca *circulairArray) getDataAsSlice() []string {
 
 	d := []string{}
 
-	for i := 0; i < MAX_ENTRIES; i++ {
+	for i := 0; i < len(ca.data); i++ {
 		if ca.get(i) == "" {
 			break
 		}
@@ -75,7 +72,7 @@ func (ca *circulairArray) len() int {
 		return ca.end - ca.end
 	}
 
-	return MAX_ENTRIES - ca.start + ca.end
+	return MAX_TRACE_SIZE - ca.start + ca.end
 }
 
 func (ca *circulairArray) flush() {
