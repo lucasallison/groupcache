@@ -6,6 +6,7 @@ replace github.com/lucasallison/ETagger v0.0.0-20220404143350-a2c486270275 => /h
 
 require (
 	github.com/golang/protobuf v1.5.2
+	github.com/joho/godotenv v1.4.0
 	github.com/lucasallison/ETagger v0.0.0-20220404143350-a2c486270275
 )
 

@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 
-	"github.com/golang/groupcache/prefetcher"
+	"github.com/golang/groupcache/cache/prefetcher"
 	tagger "github.com/lucasallison/ETagger"
 )
 
