@@ -11,7 +11,7 @@ type LFU struct {
 	cache map[interface{}]*list.Element
 }
 
-// TODO see if we can make this a struct fuc
+// TODO make this a struct func?
 /* increase access frequency by one and potentially move it up the list */
 func registerAccess(ll *list.List, el *list.Element) {
 

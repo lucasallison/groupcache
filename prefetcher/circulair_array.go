@@ -1,19 +1,19 @@
 package prefetcher
 
-import "fmt"
-
+// TODO make this size variable?
 const MAX_ENTRIES int = 5
 
 type circulairArray struct {
-	data [MAX_ENTRIES]string
+	data [MAX_ENTRIES + 1]string
 	/* index of the first entry */
 	start int
 	/* index of the first free spot */
-	end int
+	end   int
+	empty bool
 }
 
 func newCirculairArray() circulairArray {
-	return circulairArray{start: 0, end: 0}
+	return circulairArray{start: 0, end: 0, empty: true}
 }
 
 func getNewPos(currPos int, dist int) int {
@@ -22,39 +22,39 @@ func getNewPos(currPos int, dist int) int {
 
 func (ca *circulairArray) get(index int) string {
 	/* empty array or index out of range */
-	if ca.start == ca.end || index >= MAX_ENTRIES {
-		fmt.Println("END")
+	if ca.empty || index >= MAX_ENTRIES {
 		return ""
 	}
 	return ca.data[getNewPos(ca.start, index)]
 }
 
 func (ca *circulairArray) removeFront() {
-	/* empty array */
-	if ca.start == ca.end {
+	if ca.empty {
 		return
 	}
 
 	ca.start = getNewPos(ca.start, 1)
+
+	if ca.start == ca.end {
+		ca.empty = true
+	}
 }
 
 func (ca *circulairArray) pushBack(el string) {
 	/* array is full, remove first element */
-	if ca.end == ca.start {
+	if !ca.empty && ca.end == ca.start {
 		ca.removeFront()
 	}
 
-	fmt.Println(ca.end)
 	ca.data[ca.end] = el
 	ca.end = getNewPos(ca.end, 1)
-	fmt.Println(ca.end)
 
+	ca.empty = false
 }
 
 // TODO return as pointer and dont append to array? this might be slow
-func (ca *circulairArray) getAll() []string {
+func (ca *circulairArray) getDataAsSlice() []string {
 
-	fmt.Println("data: ", ca.data)
 	d := []string{}
 
 	for i := 0; i < MAX_ENTRIES; i++ {
@@ -64,4 +64,30 @@ func (ca *circulairArray) getAll() []string {
 		d = append(d, ca.get(i))
 	}
 	return d
+}
+
+// TODO is this used?
+func (ca *circulairArray) len() int {
+	if ca.empty {
+		return 0
+	}
+	if ca.end > ca.start {
+		return ca.end - ca.end
+	}
+
+	return MAX_ENTRIES - ca.start + ca.end
+}
+
+func (ca *circulairArray) flush() {
+	ca.start = 0
+	ca.end = 0
+	ca.empty = true
+}
+
+// TODO is flush neccesary?
+func (ca *circulairArray) writeData(data *[]string) {
+	ca.flush()
+	for _, d := range *data {
+		ca.pushBack(d)
+	}
 }

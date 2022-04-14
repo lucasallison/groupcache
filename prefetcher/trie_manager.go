@@ -2,7 +2,7 @@ package prefetcher
 
 import "container/list"
 
-// TODO LRU
+// TODO LRU; restrict memory
 type TrieManger struct {
 	tries *list.List
 	users map[string]*list.Element

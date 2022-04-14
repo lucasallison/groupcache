@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httputil"
 
+	"github.com/golang/groupcache/prefetcher"
 	tagger "github.com/lucasallison/ETagger"
 )
 
@@ -40,6 +42,19 @@ func NewProxyCache(cacheBytes int64) *ProxyCache {
 				return nil
 			})),
 	}
+
+	trie := prefetcher.NewTrie("1")
+	trie.ProcessRequest("D")
+	trie.ProcessRequest("E")
+	trie.ProcessRequest("F")
+	trie.ProcessRequest("Z")
+	trie.SaveTrie()
+	fmt.Println("NEW LOGIN")
+	trie = prefetcher.NewTrie("1")
+	trie.ProcessRequest("Z")
+	trie.ProcessRequest("K")
+	trie.SaveTrie()
+
 	return &pc
 }
 

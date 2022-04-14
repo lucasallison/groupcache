@@ -1,5 +1,6 @@
 package prefetcher
 
+// TODO visability
 import (
 	"fmt"
 )
@@ -49,46 +50,61 @@ func (n *node) addChild(child *node) {
 // TODO remove
 func (n *node) printChilderen() {
 	for _, c := range n.Children {
-		fmt.Println(c.URI)
+		fmt.Print(c.URI, " ")
 	}
+	fmt.Println(" ")
 }
 
 // TODO naming; this is a bit more than just a trie
 /* suffix trie */
 type Trie struct {
-	root  *node
-	trace circulairArray
+	root        *node
+	curentTrace circulairArray
+	savedTrace  []string
+	uid         string
 }
 
-func NewTrie() *Trie {
-	return &Trie{
-		root:  nil,
-		trace: newCirculairArray(),
+func NewTrie(uid string) *Trie {
+	t := Trie{
+		root:        nil,
+		curentTrace: newCirculairArray(),
+		uid:         uid,
 	}
+	t.buildTrie()
+	return &t
+}
+
+func (t *Trie) SaveTrie() error {
+	return writeUserTrace(t.uid, t.curentTrace.getDataAsSlice())
 }
 
 func (t *Trie) ProcessRequest(URI string) {
-	t.trace.pushBack(URI)
+	t.curentTrace.pushBack(URI)
 
-	t.PredictNext()
+	t.predictNext(true)
 }
 
-func (t *Trie) BuildTrie() {
+func (t *Trie) buildTrie() {
+
+	t.savedTrace, _ = getUserTrace(t.uid)
+
+	/* we extend the saved request pattern */
+	t.curentTrace.writeData(&t.savedTrace)
 
 	t.root = newNode("root")
 
-	for i := 0; i < len(test); i++ {
-		t.addSuffix(&test, i)
+	for i := 0; i < len(t.savedTrace); i++ {
+		t.addSuffix(i)
 	}
 }
 
-func (t *Trie) addSuffix(trace *[]string, pos int) {
+func (t *Trie) addSuffix(pos int) {
 
 	currentNode := t.root
 	var nextNode *node
 
-	// TODO is using slices efficient enough?
-	for _, URI := range (*trace)[pos:] {
+	// TODO is using slices efficient enough? see also predict next
+	for _, URI := range (t.savedTrace)[pos:] {
 		nextNode = currentNode.getChild(URI)
 
 		if nextNode == nil {
@@ -100,17 +116,37 @@ func (t *Trie) addSuffix(trace *[]string, pos int) {
 	}
 }
 
-func (t *Trie) PredictNext() {
-	currentNode := t.root
+func (t *Trie) predictNext(recursive bool) {
 
-	fmt.Println(t.trace.getAll())
-	for _, URI := range t.trace.getAll() {
-		currentNode = currentNode.getChild(URI)
-		if currentNode == nil {
-			fmt.Println("pattern not matched")
-			return
+	trace := t.curentTrace.getDataAsSlice()
+	var currentNode *node
+	var matched bool
+
+	fmt.Println(t.curentTrace.getDataAsSlice())
+
+	// TODO let lower bound
+	for i := 0; i < len(trace); i++ {
+		currentNode = t.root
+		matched = true
+		fmt.Println("Matching: ", trace[i:])
+		for _, URI := range trace[i:] {
+			currentNode = currentNode.getChild(URI)
+			if currentNode == nil {
+				matched = false
+				break
+			}
+
+		}
+
+		if !recursive || matched {
+			fmt.Print("Matched in ", i, "th iteration")
+			break
 		}
 	}
 
-	currentNode.printChilderen()
+	if currentNode == nil {
+		fmt.Println("pattern not matched")
+	} else {
+		currentNode.printChilderen()
+	}
 }
