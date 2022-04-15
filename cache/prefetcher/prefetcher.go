@@ -31,6 +31,8 @@ func NewPrefetcher() *Prefetcher {
 		trie.SaveTrie()
 	}
 
+	createBaseDir()
+
 	return pf
 }
 

@@ -15,7 +15,7 @@ func fileExists(dst string) bool {
 
 // creates subdirectories if they do not exists, otherwise does nothing
 // TODO call this func pls
-func createBaseDir(path string) error {
+func createBaseDir() error {
 	root, err := getRootSaveDir()
 	if err != nil {
 		return err
