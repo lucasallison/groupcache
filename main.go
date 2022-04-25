@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -10,8 +11,9 @@ import (
 	"github.com/golang/groupcache/cache/prefetcher"
 )
 
-//var cacheBytes int64 = 64 << 20
-var cacheBytes int64 = 1500
+var cacheBytes int64 = 64 << 20
+
+// var cacheBytes int64 = 1500
 var proxyCache = groupcache.NewProxyCache(cacheBytes)
 var pf = prefetcher.NewPrefetcher()
 var prefetchingEnabled bool = PrefetchingEnabled()
@@ -62,5 +64,6 @@ func main() {
 
 	http.HandleFunc("/", serveRequest)
 
-	http.ListenAndServe(":8080", nil)
+	log.Println("Servering at: http://localhost:8081")
+	http.ListenAndServe(":8081", nil)
 }
