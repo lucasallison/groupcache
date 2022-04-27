@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -79,9 +80,56 @@ func (pc *ProxyCache) Get(ctx context.Context, proxy ProxyWrapper) error {
 		return pc.modifyCache(dest, key, r)
 	}
 
-	pc.serveRequest(key, proxy)
+	if proxy.Req.Header.Get("Picked-By-Peer") != "True" {
+		forward(proxy.Writer, proxy.Req, "localhost:8081")
+		fmt.Println("YES")
+	} else {
+		fmt.Println("No")
+		pc.serveRequest(key, proxy)
+	}
 
 	return nil
+}
+
+func forward(w http.ResponseWriter, req *http.Request, peer string) {
+	// we need to buffer the body if we want to read it here and send it
+	// in the request.
+	body, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// you can reassign the body if you need to parse it as multipart
+	req.Body = ioutil.NopCloser(bytes.NewReader(body))
+
+	// create a new url from the raw RequestURI sent by the client
+	url := fmt.Sprintf("%s://%s%s", "http", peer, req.RequestURI)
+	fmt.Println(url)
+
+	proxyReq, err := http.NewRequest(req.Method, url, bytes.NewReader(body))
+
+	// We may want to filter some headers, otherwise we could just use a shallow copy
+	// proxyReq.Header = req.Header
+	proxyReq.Header = make(http.Header)
+	for h, val := range req.Header {
+		proxyReq.Header[h] = val
+	}
+	proxyReq.Header.Set("Picked-By-Peer", "True")
+	//	proxyReq.Header.Set("Target-Port", ":8081")
+
+	client := &http.Client{}
+	resp, err := client.Do(proxyReq)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	b, err := ioutil.ReadAll(resp.Body)
+	fmt.Println(string(b))
+
+	// legacy code
 }
 
 func (pc *ProxyCache) serveRequest(key string, proxy ProxyWrapper) {

@@ -23,7 +23,7 @@ func LoadEnv() {
 func RetrieveEnvFile() string {
 	env, ok := os.LookupEnv("environment")
 	if !ok {
-		return ".env.local"
+		return ".env.production"
 	}
 	return env
 }

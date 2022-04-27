@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -17,6 +18,7 @@ var cacheBytes int64 = 64 << 20
 var proxyCache = groupcache.NewProxyCache(cacheBytes)
 var pf = prefetcher.NewPrefetcher()
 var prefetchingEnabled bool = PrefetchingEnabled()
+
 var proxy = httputil.NewSingleHostReverseProxy(&url.URL{})
 
 func director(r *http.Request) {
@@ -28,6 +30,8 @@ func director(r *http.Request) {
 var uid string = "1"
 
 func serveRequest(w http.ResponseWriter, r *http.Request) {
+
+	fmt.Println(r.Host)
 
 	// TODO remove
 	if r.URL.Path == "/switch" {
@@ -60,10 +64,14 @@ func serveRequest(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 
+	addr := flag.String("addr", ":8080", "server address")
+	//	peers := flag.String("pool", "http://localhost:8080", "server pool list")
+	flag.Parse()
+
 	proxy.Director = director
 
 	http.HandleFunc("/", serveRequest)
 
-	log.Println("Servering at: http://localhost:8081")
-	http.ListenAndServe(":8081", nil)
+	log.Println("Servering at: http://localhost" + *addr)
+	http.ListenAndServe(*addr, nil)
 }
