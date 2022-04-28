@@ -30,7 +30,7 @@ func (f *forwarder) Forward(key string, r *http.Request) (res *http.Response, er
 	}
 	fmt.Println(peer)
 
-	bodyAsBytes, err := getRequestBodyAsBytes(r)
+	bodyAsBytes, err := getBodyAsBytes(&r.Body)
 	if err != nil {
 		return
 	}

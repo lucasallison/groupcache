@@ -208,7 +208,7 @@ func decodeResponse(b []byte) (*cachedResponse, error) {
 
 func encodeResponse(r *http.Response) (*[]byte, error) {
 
-	respbody, err := getBodyAsBytes(r)
+	respbody, err := getBodyAsBytes(&r.Body)
 
 	/* encode struct */
 	cr := cachedResponse{
@@ -228,39 +228,23 @@ func encodeResponse(r *http.Response) (*[]byte, error) {
 	return &encodedResponse, nil
 }
 
-func getBodyAsBytes(r *http.Response) (*[]byte, error) {
+func getBodyAsBytes(body *io.ReadCloser) (*[]byte, error) {
 
 	/* read body */
-	defer r.Body.Close()
-	respbody, err := ioutil.ReadAll(r.Body)
+	defer (*body).Close()
+	bodyAsBytes, err := ioutil.ReadAll(*body)
 	if err != nil {
 		return nil, err
 	}
 	/* replace the cleared out body */
-	r.Body = ioutil.NopCloser(bytes.NewBuffer(respbody))
+	*body = ioutil.NopCloser(bytes.NewBuffer(bodyAsBytes))
 
-	return &respbody, nil
-}
-
-// TODO merge these two
-func getRequestBodyAsBytes(r *http.Request) (*[]byte, error) {
-
-	/* read body */
-	defer r.Body.Close()
-	respbody, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		return nil, err
-	}
-	/* replace the cleared out body */
-	r.Body = ioutil.NopCloser(bytes.NewBuffer(respbody))
-
-	return &respbody, nil
-
+	return &bodyAsBytes, nil
 }
 
 func writeRecievedResponse(w http.ResponseWriter, res *http.Response) {
 
-	bodyAsBytes, err := getBodyAsBytes(res)
+	bodyAsBytes, err := getBodyAsBytes(&res.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
