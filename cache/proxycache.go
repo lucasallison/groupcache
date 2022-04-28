@@ -28,8 +28,9 @@ type cachedResponse struct {
 }
 
 type ProxyCache struct {
-	etagger *tagger.ETagger
-	group   *Group
+	etagger   *tagger.ETagger
+	group     *Group
+	forwarder *forwarder
 }
 
 // TODO name? now only pc ...
@@ -40,14 +41,36 @@ func NewProxyCache(cacheBytes int64) *ProxyCache {
 			func(ctx Context, key string, dest Sink) error {
 				return nil
 			})),
+		forwarder: newForwarder(),
 	}
 
 	return &pc
 }
 
+func (pc *ProxyCache) RegisterPeerGroup(self string, peers ...string) {
+	pc.forwarder.set(self, peers...)
+}
+
 func (pc *ProxyCache) Get(ctx context.Context, proxy ProxyWrapper) error {
 
 	key := proxy.Req.URL.Path
+
+	_, cachehit := pc.group.lookupCache(key)
+
+	/* if it is not stored locally, check if it is stored in a peer */
+	if !cachehit {
+		res, err, ok := pc.forwarder.Forward(key, proxy.Req)
+		if err != nil {
+			// TODO more?
+			proxy.Writer.WriteHeader(http.StatusInternalServerError)
+			return err
+		}
+
+		if ok {
+			writeRecievedResponse(proxy.Writer, res)
+			return nil
+		}
+	}
 
 	proxy.Proxy.ModifyResponse = func(r *http.Response) error {
 
@@ -80,56 +103,8 @@ func (pc *ProxyCache) Get(ctx context.Context, proxy ProxyWrapper) error {
 		return pc.modifyCache(dest, key, r)
 	}
 
-	if proxy.Req.Header.Get("Picked-By-Peer") != "True" {
-		forward(proxy.Writer, proxy.Req, "localhost:8081")
-		fmt.Println("YES")
-	} else {
-		fmt.Println("No")
-		pc.serveRequest(key, proxy)
-	}
-
+	pc.serveRequest(key, proxy)
 	return nil
-}
-
-func forward(w http.ResponseWriter, req *http.Request, peer string) {
-	// we need to buffer the body if we want to read it here and send it
-	// in the request.
-	body, err := ioutil.ReadAll(req.Body)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// you can reassign the body if you need to parse it as multipart
-	req.Body = ioutil.NopCloser(bytes.NewReader(body))
-
-	// create a new url from the raw RequestURI sent by the client
-	url := fmt.Sprintf("%s://%s%s", "http", peer, req.RequestURI)
-	fmt.Println(url)
-
-	proxyReq, err := http.NewRequest(req.Method, url, bytes.NewReader(body))
-
-	// We may want to filter some headers, otherwise we could just use a shallow copy
-	// proxyReq.Header = req.Header
-	proxyReq.Header = make(http.Header)
-	for h, val := range req.Header {
-		proxyReq.Header[h] = val
-	}
-	proxyReq.Header.Set("Picked-By-Peer", "True")
-	//	proxyReq.Header.Set("Target-Port", ":8081")
-
-	client := &http.Client{}
-	resp, err := client.Do(proxyReq)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
-		return
-	}
-	defer resp.Body.Close()
-
-	b, err := ioutil.ReadAll(resp.Body)
-	fmt.Println(string(b))
-
-	// legacy code
 }
 
 func (pc *ProxyCache) serveRequest(key string, proxy ProxyWrapper) {
@@ -266,6 +241,42 @@ func getBodyAsBytes(r *http.Response) (*[]byte, error) {
 	r.Body = ioutil.NopCloser(bytes.NewBuffer(respbody))
 
 	return &respbody, nil
+}
+
+// TODO merge these two
+func getRequestBodyAsBytes(r *http.Request) (*[]byte, error) {
+
+	/* read body */
+	defer r.Body.Close()
+	respbody, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return nil, err
+	}
+	/* replace the cleared out body */
+	r.Body = ioutil.NopCloser(bytes.NewBuffer(respbody))
+
+	return &respbody, nil
+
+}
+
+func writeRecievedResponse(w http.ResponseWriter, res *http.Response) {
+
+	bodyAsBytes, err := getBodyAsBytes(res)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(res.StatusCode)
+	for h, val := range res.Header {
+		for _, v := range val {
+			fmt.Println(h, v)
+			w.Header().Add(h, v)
+		}
+	}
+	fmt.Println(w.Header())
+
+	w.Write(*bodyAsBytes)
 }
 
 func logInfo(cachehit bool, modified bool, key string) {

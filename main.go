@@ -2,11 +2,11 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 
 	groupcache "github.com/golang/groupcache/cache"
 	"github.com/golang/groupcache/cache/prefetcher"
@@ -27,31 +27,15 @@ func director(r *http.Request) {
 	r.URL.Scheme = "http"
 }
 
-var uid string = "1"
-
 func serveRequest(w http.ResponseWriter, r *http.Request) {
-
-	fmt.Println(r.Host)
-
-	// TODO remove
-	if r.URL.Path == "/switch" {
-		if uid == "1" {
-			uid = "2"
-		} else {
-			uid = "1"
-		}
-		fmt.Println("User is now: ", uid)
-
-		// will fail
-		proxy.ServeHTTP(w, r)
-		return
-	}
 
 	if r.Method == http.MethodGet {
 
-		if prefetchingEnabled {
-			pf.ProcessRequest(uid, r.URL.Path)
-		}
+		/*
+			if prefetchingEnabled {
+				pf.ProcessRequest(uid, r.URL.Path)
+			}
+		*/
 
 		/* Check the proxy cache for GET requests */
 		pw := groupcache.ProxyWrapper{Proxy: proxy, Writer: w, Req: r}
@@ -65,10 +49,13 @@ func serveRequest(w http.ResponseWriter, r *http.Request) {
 func main() {
 
 	addr := flag.String("addr", ":8080", "server address")
-	//	peers := flag.String("pool", "http://localhost:8080", "server pool list")
+	peers := flag.String("pool", "http://localhost:8080", "server pool list")
 	flag.Parse()
 
 	proxy.Director = director
+
+	p := strings.Split(*peers, ",")
+	proxyCache.RegisterPeerGroup(p[0], p...)
 
 	http.HandleFunc("/", serveRequest)
 
