@@ -61,7 +61,6 @@ func (pc *ProxyCache) Get(ctx context.Context, proxy ProxyWrapper) error {
 	if !cachehit {
 		res, err, ok := pc.forwarder.Forward(key, proxy.Req)
 		if err != nil {
-			// TODO more?
 			proxy.Writer.WriteHeader(http.StatusInternalServerError)
 			return err
 		}
