@@ -31,10 +31,11 @@ type ProxyCache struct {
 	etagger   *tagger.ETagger
 	group     *Group
 	forwarder *forwarder
+	validate  bool
 }
 
 // TODO name? now only pc ...
-func NewProxyCache(cacheBytes int64) *ProxyCache {
+func NewProxyCache(cacheBytes int64, validate bool) *ProxyCache {
 	pc := ProxyCache{
 		etagger: tagger.NewTagger(nil, false),
 		group: NewGroup("pc", cacheBytes, GetterFunc(
@@ -42,6 +43,7 @@ func NewProxyCache(cacheBytes int64) *ProxyCache {
 				return nil
 			})),
 		forwarder: newForwarder(),
+		validate:  validate,
 	}
 
 	return &pc
@@ -54,7 +56,6 @@ func (pc *ProxyCache) RegisterPeerGroup(self string, peers ...string) {
 func (pc *ProxyCache) Get(ctx context.Context, proxy ProxyWrapper) error {
 
 	key := proxy.Req.URL.Path
-
 	_, cachehit := pc.group.lookupCache(key)
 
 	/* if it is not stored locally, check if it is stored in a peer */
@@ -71,44 +72,51 @@ func (pc *ProxyCache) Get(ctx context.Context, proxy ProxyWrapper) error {
 		}
 	}
 
+	v := validator{}
+	if pc.validate {
+		v.makeRequest(proxy.Req)
+	}
+
 	proxy.Proxy.ModifyResponse = func(r *http.Response) error {
 
 		if r.StatusCode >= http.StatusBadRequest {
 			return nil
 		}
 
-		modified := true
-		cachehit := false
-		cachedBytes := []byte{}
+		modified, cachehit, cachedBytes := true, false, []byte{}
 		dest := AllocatingByteSliceSink(&cachedBytes)
 
-		/* NOT MODIFIED: try to load from cache */
+		/* NOT MODIFIED: load from cache */
 		if r.StatusCode == http.StatusNotModified {
 
 			modified = false
-			value, cachehit := pc.group.lookupCache(key)
+			cachehit = true
+			value, _ := pc.group.lookupCache(key)
 
-			/* CACHE HIT: try to load from cache */
-			if cachehit {
-				logInfo(cachehit, modified, key)
-				return pc.processCacheHit(r, &cachedBytes, dest, &value)
+			logInfo(cachehit, modified, key)
+			err := pc.processCacheHit(r, &cachedBytes, dest, &value)
+
+			if pc.validate {
+				v.validate(r)
 			}
-
+			return err
 		}
 
-		logInfo(cachehit, modified, key)
-
 		/* OBJECT MODIFIED OR CACHE MISS: update cache */
+		logInfo(cachehit, modified, key)
 		return pc.modifyCache(dest, key, r)
 	}
 
-	pc.serveRequest(key, proxy)
+	pc.serveRequest(key, proxy, cachehit)
 	return nil
 }
 
-func (pc *ProxyCache) serveRequest(key string, proxy ProxyWrapper) {
+func (pc *ProxyCache) serveRequest(key string, proxy ProxyWrapper, storedInCache bool) {
 
-	proxy.Req.Header.Set("ETag", pc.etagger.GetEtag(key))
+	/* the etagger might contain entries that have been evicted */
+	if storedInCache {
+		proxy.Req.Header.Set("ETag", pc.etagger.GetEtag(key))
+	}
 
 	proxy.Proxy.ServeHTTP(proxy.Writer, proxy.Req)
 

@@ -10,19 +10,21 @@ import (
 
 	groupcache "github.com/golang/groupcache/cache"
 	"github.com/golang/groupcache/cache/prefetcher"
+	"github.com/golang/groupcache/utils"
 )
 
 var cacheBytes int64 = 64 << 20
 
 // var cacheBytes int64 = 1500
-var proxyCache = groupcache.NewProxyCache(cacheBytes)
+
+var proxyCache = groupcache.NewProxyCache(cacheBytes, true)
 var pf = prefetcher.NewPrefetcher()
-var prefetchingEnabled bool = PrefetchingEnabled()
+var prefetchingEnabled bool = utils.PrefetchingEnabled()
 
 var proxy = httputil.NewSingleHostReverseProxy(&url.URL{})
 
 func director(r *http.Request) {
-	r.Host = GetHostFromEnv()
+	r.Host = utils.GetHostFromEnv()
 	r.URL.Host = r.Host
 	r.URL.Scheme = "http"
 }
@@ -46,6 +48,7 @@ func serveRequest(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// example: go run . -addr=:8080 -pool=http://127.0.0.1:8080,http://127.0.0.1:8081,http://127.0.0.1:8082
 func main() {
 
 	addr := flag.String("addr", ":8080", "server address")
