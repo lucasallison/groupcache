@@ -19,8 +19,16 @@ func (v *validator) validate(r *http.Response) {
 	correctResponseBody, _ := getBodyAsBytes(&v.res.Body)
 
 	result := bytes.Compare(*servedResponseBody, *correctResponseBody)
-	if result != 0 || v.res.StatusCode != r.StatusCode {
-		log.Println("INVALID response has been served for ", v.url)
+	if result != 0 {
+		log.Println("INVALID body has been served for ", v.url)
+		log.Println("Expected: ", string(*correctResponseBody))
+		log.Println("Cached: ", string(*servedResponseBody))
+	}
+
+	if v.res.StatusCode != r.StatusCode {
+		log.Println("INVALID status code has been served for ", v.url)
+		log.Println("Expected: ", v.res.StatusCode)
+		log.Println("Cached: ", r.StatusCode)
 	}
 }
 

@@ -44,6 +44,7 @@ func serveRequest(w http.ResponseWriter, r *http.Request) {
 		proxyCache.Get(nil, pw)
 
 	} else {
+		log.Println("Proxying a ", r.Method, " request for ", r.URL.Path)
 		proxy.ServeHTTP(w, r)
 	}
 }
