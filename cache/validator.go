@@ -48,6 +48,7 @@ func (v *validator) makeRequest(r *http.Request) {
 		req.Header[h] = val
 	}
 
+	req.Header.Add("Validating", "True")
 	tr := http.DefaultTransport
 	v.res, _ = tr.RoundTrip(req)
 	return

@@ -34,7 +34,6 @@ type ProxyCache struct {
 	validate  bool
 }
 
-// TODO name? now only pc ...
 func NewProxyCache(cacheBytes int64, validate bool) *ProxyCache {
 	pc := ProxyCache{
 		etagger: tagger.NewTagger(nil, false),

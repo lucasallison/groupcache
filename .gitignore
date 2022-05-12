@@ -22,3 +22,5 @@ go.work
 
 # Uploaded assets
 **traces/
+
+logs.txt
