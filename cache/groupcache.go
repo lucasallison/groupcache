@@ -394,7 +394,8 @@ type cache struct {
 	nbytes     int64 // of all keys and values
 	op         operator.CacheOperator
 	nhit, nget int64
-	nevict     int64 // number of evictions
+	nevict     int64  // number of evictions
+	ctype      string // which implementation do we use?
 }
 
 func (c *cache) stats() CacheStats {
@@ -413,28 +414,33 @@ func (c *cache) add(key string, value ByteView) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.op == nil {
-		/*
-			c.op = &operator.LRU{
-				OnEvicted: func(key operator.Key, value interface{}) {
-					val := value.(ByteView)
-					c.nbytes -= int64(len(key.(string))) + int64(val.Len())
-					c.nevict++
-					// TODO remove
-					log.Println("Evicting: ", key)
-				},
-		*/
-		c.op = &operator.LFU{
-			OnEvicted: func(key operator.Key, value interface{}) {
-				val := value.(ByteView)
-				c.nbytes -= int64(len(key.(string))) + int64(val.Len())
-				c.nevict++
-				// TODO remove
-				log.Println("Evicting: ", key)
-			},
+
+		onEvicted := func(key operator.Key, value interface{}) {
+			val := value.(ByteView)
+			c.nbytes -= int64(len(key.(string))) + int64(val.Len())
+			c.nevict++
+			// TODO remove
+			log.Println("Evicting: ", key)
 		}
+
+		switch c.ctype {
+		case "LFU":
+			log.Println("USING LFU OPERATOR")
+			c.op = operator.NewLFU(0, onEvicted)
+		case "GDSF":
+			log.Println("USING GDSF OPERATOR")
+			c.op = operator.NewGDSF(0, onEvicted)
+		default:
+			log.Println("USING LRU OPERATOR")
+			c.op = operator.NewLRU(0, onEvicted)
+		}
+
 	}
-	c.op.Add(key, value)
-	c.nbytes += int64(len(key)) + int64(value.Len())
+
+	if !c.op.ContainsKey(key) {
+		c.nbytes += int64(len(key)) + int64(value.Len())
+	}
+	c.op.Add(key, value, value.Len())
 
 	// TODO remove
 	log.Println("nbytes: ", c.nbytes)

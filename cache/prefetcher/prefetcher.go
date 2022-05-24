@@ -17,7 +17,7 @@ type Prefetcher struct {
 
 func NewPrefetcher() *Prefetcher {
 	pf := &Prefetcher{
-		tries: operator.NewLRU(MAX_TRIES),
+		tries: operator.NewLRU(MAX_TRIES, nil),
 	}
 
 	pf.tries.OnEvicted = func(key operator.Key, value interface{}) {
@@ -47,7 +47,7 @@ func (tm *Prefetcher) ProcessRequest(uid string, URI string) []string {
 	if !ok {
 		fmt.Println("TRIE made")
 		trie = NewTrie(uid)
-		tm.tries.Add(uid, trie)
+		tm.tries.Add(uid, trie, 0)
 	} else {
 		fmt.Println("TRIE found")
 		trie = value.(*Trie)

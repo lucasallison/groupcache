@@ -1,7 +1,5 @@
 package operator
 
-import "container/list"
-
 // A Key may be any value that is comparable. See http://golang.org/ref/spec#Comparison_operators
 type Key interface{}
 
@@ -12,11 +10,11 @@ type entry struct {
 }
 
 type CacheOperator interface {
-	Add(key Key, value interface{})
+	Add(key Key, value interface{}, len int)
 	Get(key Key) (value interface{}, ok bool)
 	Remove(key Key)
 	RemoveBasedOnPolicy()
-	removeElement(e *list.Element)
 	Len() int
 	Clear()
+	ContainsKey(key Key) bool
 }

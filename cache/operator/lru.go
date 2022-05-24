@@ -38,16 +38,17 @@ type LRU struct {
 // New creates a new LRU operator.
 // If maxEntries is zero, the cache has no limit and it's assumed
 // that eviction is done by the caller.
-func NewLRU(maxEntries int) *LRU {
+func NewLRU(maxEntries int, onEvicted func(key Key, value interface{})) *LRU {
 	return &LRU{
 		MaxEntries: maxEntries,
 		ll:         list.New(),
 		cache:      make(map[interface{}]*list.Element),
+		OnEvicted:  onEvicted,
 	}
 }
 
 // Add adds a value to the cache.
-func (c *LRU) Add(key Key, value interface{}) {
+func (c *LRU) Add(key Key, value interface{}, len int) {
 	if c.cache == nil {
 		c.cache = make(map[interface{}]*list.Element)
 		c.ll = list.New()
@@ -124,4 +125,9 @@ func (c *LRU) Clear() {
 	}
 	c.ll = nil
 	c.cache = nil
+}
+
+func (c *LRU) ContainsKey(key Key) bool {
+	_, ok := c.cache[key]
+	return ok
 }

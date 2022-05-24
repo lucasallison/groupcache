@@ -20,7 +20,6 @@ type ProxyWrapper struct {
 	Req    *http.Request
 }
 
-// TODO add more fields? See the response struct
 type cachedResponse struct {
 	StatusCode int
 	Header     http.Header
@@ -34,9 +33,18 @@ type ProxyCache struct {
 	validate  bool
 }
 
-func NewProxyCache(cacheBytes int64, validate bool) *ProxyCache {
+var invalidationPools = [][]string{
+	{"user"},
+	{"category", "path"},
+	{"path", "category", "skill"},
+	{"skill", "path", "resource"},
+	{"resource", "skill"},
+	{"blog"},
+}
+
+func NewProxyCache(cacheBytes int64, validate bool, ctype string) *ProxyCache {
 	pc := ProxyCache{
-		etagger: tagger.NewTagger(nil, false),
+		etagger: tagger.NewTagger(invalidationPools),
 		group: NewGroup("pc", cacheBytes, GetterFunc(
 			func(ctx Context, key string, dest Sink) error {
 				return nil
@@ -44,6 +52,10 @@ func NewProxyCache(cacheBytes int64, validate bool) *ProxyCache {
 		forwarder: newForwarder(),
 		validate:  validate,
 	}
+
+	// Set the cache type
+	pc.group.mainCache.ctype = ctype
+	pc.group.hotCache.ctype = ctype
 
 	return &pc
 }
@@ -152,7 +164,6 @@ func (pc *ProxyCache) writeToCache(key string, dest Sink, b []byte) error {
 		return err
 	}
 
-	// TODO see line 298 of groupecache. We cant only call this function...
 	pc.group.populateCache(key, value, &pc.group.mainCache)
 
 	return nil

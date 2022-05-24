@@ -11,6 +11,15 @@ type LFU struct {
 	cache map[interface{}]*list.Element
 }
 
+func NewLFU(maxEntries int, onEvicted func(key Key, value interface{})) *LFU {
+	return &LFU{
+		MaxEntries: maxEntries,
+		ll:         list.New(),
+		cache:      make(map[interface{}]*list.Element),
+		OnEvicted:  onEvicted,
+	}
+}
+
 // TODO make this a struct func?
 /* increase access frequency by one and potentially move it up the list */
 func registerAccess(ll *list.List, el *list.Element) {
@@ -33,7 +42,7 @@ func registerAccess(ll *list.List, el *list.Element) {
 	}
 }
 
-func (c *LFU) Add(key Key, value interface{}) {
+func (c *LFU) Add(key Key, value interface{}, len int) {
 	if c.cache == nil {
 		c.cache = make(map[interface{}]*list.Element)
 		c.ll = list.New()
@@ -110,4 +119,9 @@ func (c *LFU) Clear() {
 	}
 	c.ll = nil
 	c.cache = nil
+}
+
+func (c *LFU) ContainsKey(key Key) bool {
+	_, ok := c.cache[key]
+	return ok
 }

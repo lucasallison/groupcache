@@ -13,11 +13,12 @@ import (
 	"github.com/golang/groupcache/utils"
 )
 
+// var cacheBytes int64 = 1300
+
 var cacheBytes int64 = 64 << 20
+var cacheOperator string = "GDSF"
 
-// var cacheBytes int64 = 1500
-
-var proxyCache = groupcache.NewProxyCache(cacheBytes, true)
+var proxyCache = groupcache.NewProxyCache(cacheBytes, true, cacheOperator)
 var pf = prefetcher.NewPrefetcher()
 var prefetchingEnabled bool = utils.PrefetchingEnabled()
 
