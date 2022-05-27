@@ -339,6 +339,7 @@ func (g *Group) populateCache(key string, value ByteView, cache *cache) {
 	if g.cacheBytes <= 0 {
 		return
 	}
+
 	cache.add(key, value)
 
 	// Evict items from cache(s) if necessary.
@@ -358,6 +359,46 @@ func (g *Group) populateCache(key string, value ByteView, cache *cache) {
 		}
 		victim.removeOldest()
 	}
+}
+
+func (g *Group) populateWithAdmission(key string, value ByteView, cache *cache) {
+
+	decreaseBytes := false
+	var newCacheBytes int64
+
+	// Only if the key already exists the bytes can be decreased
+	if cache.op.ContainsKey(key) {
+
+		vi, _ := cache.op.Get(key)
+
+		if int64(vi.(ByteView).Len()) >= int64(value.Len()) {
+			decreaseBytes = true
+		}
+
+		// Does not matter if decreaseBytes is true, in this case it will be negative
+		newCacheBytes = int64(value.Len()) - int64(vi.(ByteView).Len())
+	} else {
+		newCacheBytes = int64(len(key)) + int64(value.Len())
+	}
+
+	if decreaseBytes {
+		cache.add(key, value)
+		return
+	}
+
+	for {
+
+		mainBytes := g.mainCache.bytes()
+		hotBytes := g.hotCache.bytes()
+
+		if mainBytes+hotBytes+newCacheBytes <= g.cacheBytes {
+			return
+		}
+
+		// TODO determine wheter to add new entry
+
+	}
+
 }
 
 // CacheType represents a type of cache.
@@ -439,6 +480,10 @@ func (c *cache) add(key string, value ByteView) {
 
 	if !c.op.ContainsKey(key) {
 		c.nbytes += int64(len(key)) + int64(value.Len())
+	} else {
+		vi, _ := c.op.Get(key)
+		c.nbytes -= int64(vi.(ByteView).Len())
+		c.nbytes += int64(value.Len())
 	}
 	c.op.Add(key, value, value.Len())
 
