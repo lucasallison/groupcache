@@ -17,7 +17,7 @@ func hashSHA1(s string) int {
 	h := sha1.New()
 	h.Write([]byte(s))
 	hash := h.Sum(nil)
-	return int(binary.BigEndian.Uint64(hash))
+	return abs(int(binary.BigEndian.Uint64(hash)))
 }
 
 func hashMD5(s string) int {

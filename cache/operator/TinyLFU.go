@@ -1,7 +1,6 @@
 package operator
 
 import (
-	"fmt"
 	"sync"
 )
 
@@ -46,7 +45,6 @@ func (t *TinyLFU) RegisterEntry(key string) {
 	var highest int
 	for _, hash := range t.hashFuncs {
 		i := hash(key) % FILTERSIZE
-		fmt.Println("hash: ", i)
 		t.bloomFilter[i]++
 		if first {
 			highest = i
@@ -83,7 +81,6 @@ func (t *TinyLFU) AdmitNewKey(newKey string, existingKey string) bool {
 	nfreq := t.EstimateFrequency(newKey)
 	efreq := t.EstimateFrequency(existingKey)
 
-	fmt.Println("nkey freq: ", nfreq, " ekey freq: ", efreq)
 	// TODO make this more sophisticated, add some margin or something ...
 	return nfreq > efreq
 }

@@ -27,7 +27,6 @@ package groupcache
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
 	"math/rand"
 	"strconv"
@@ -413,9 +412,7 @@ func (g *Group) populateWithAdmission(key string, value ByteView, cache *cache) 
 		return
 	}
 
-	fmt.Println("Eviction")
 	if g.evictWithAdmission(key, cache, newCacheBytes) {
-		fmt.Println("adding to cache")
 		cache.add(key, value)
 	}
 }
@@ -423,39 +420,30 @@ func (g *Group) populateWithAdmission(key string, value ByteView, cache *cache) 
 func (g *Group) evictWithAdmission(key string, cache *cache, ncb int64) (admit bool) {
 	admit = true
 
-	fmt.Println("for")
 	for {
 
 		mainBytes := g.mainCache.bytes()
 		hotBytes := g.hotCache.bytes()
-		fmt.Println("mb: ", mainBytes, " hb: ", hotBytes, " ncb: ", ncb, " available: ", g.cacheBytes)
 
 		if mainBytes+hotBytes+ncb <= g.cacheBytes || cache.op == nil {
-			fmt.Println("return")
 			return
 		}
 
-		fmt.Println("obtain lock")
 		// Obtain lock so we can interact with the operator
 		cache.mu.Lock()
 
-		fmt.Println("get victim")
 		victimKey := cache.op.NextVictim()
 		if victimKey == "" {
-			fmt.Println("return")
 			cache.mu.Unlock()
 			return
 		}
 
-		fmt.Println("test admission: ", key, " vc:", victimKey, "kk")
 		admitEntry := g.Bouncer.AdmitNewKey(key, victimKey)
 
 		if admitEntry {
-			fmt.Println("Admitted")
 			cache.op.RemoveBasedOnPolicy()
 			cache.mu.Unlock()
 		} else {
-			fmt.Println("denied")
 			cache.mu.Unlock()
 			return false
 		}
