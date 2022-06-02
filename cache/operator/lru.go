@@ -128,6 +128,21 @@ func (c *LRU) Clear() {
 }
 
 func (c *LRU) ContainsKey(key Key) bool {
+	if c.cache == nil {
+		return false
+	}
+
 	_, ok := c.cache[key]
 	return ok
+}
+
+func (c *LRU) NextVictim() (key string) {
+	if c.cache == nil {
+		return ""
+	}
+	ele := c.ll.Back()
+	if ele != nil {
+		return ele.Value.(*entry).key.(string)
+	}
+	return ""
 }

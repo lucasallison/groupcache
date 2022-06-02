@@ -2,7 +2,6 @@ package operator
 
 import (
 	"container/heap"
-	"fmt"
 )
 
 type GDSF struct {
@@ -28,20 +27,19 @@ func NewGDSF(maxEntries int, onEvicted func(key Key, value interface{})) *GDSF {
 func (g *GDSF) Add(key Key, value interface{}, len int) {
 
 	priority := len
-	fmt.Println(key, ": ", priority)
 	if it, ok := g.cache[key]; ok {
 		g.pq.update(it, value, float64(priority))
 	} else {
 		it := Item{
 			key:      key,
 			value:    value,
+			len:      len,
 			priority: float64(priority),
 		}
 		heap.Push(&g.pq, &it)
 		g.pq.update(&it, value, float64(priority))
 		g.cache[key] = &it
 	}
-	fmt.Println(g.pq)
 }
 
 func (g *GDSF) Get(key Key) (value interface{}, ok bool) {
@@ -62,7 +60,6 @@ func (g *GDSF) RemoveBasedOnPolicy() {
 
 	item := heap.Pop(&g.pq).(*Item)
 	delete(g.cache, item.key)
-	fmt.Println("Removed: ", item.key)
 
 	if g.OnEvicted != nil {
 		g.OnEvicted(item.key, item.value)
@@ -85,4 +82,14 @@ func (g *GDSF) Clear() {
 func (g *GDSF) ContainsKey(key Key) bool {
 	_, ok := g.cache[key]
 	return ok
+}
+
+func (g *GDSF) NextVictim() (key string) {
+	item := heap.Pop(&g.pq).(*Item)
+	if item == nil {
+		return
+	}
+
+	g.Add(item.key, item.value, item.len)
+	return item.key.(string)
 }

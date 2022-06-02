@@ -125,3 +125,14 @@ func (c *LFU) ContainsKey(key Key) bool {
 	_, ok := c.cache[key]
 	return ok
 }
+
+func (c *LFU) NextVictim() (key string) {
+	if c.cache == nil {
+		return
+	}
+	ele := c.ll.Back()
+	if ele != nil {
+		return ele.Value.(entry).key.(string)
+	}
+	return
+}

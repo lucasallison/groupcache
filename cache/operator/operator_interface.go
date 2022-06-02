@@ -17,4 +17,5 @@ type CacheOperator interface {
 	Len() int
 	Clear()
 	ContainsKey(key Key) bool
+	NextVictim() (key string)
 }

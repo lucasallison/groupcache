@@ -46,3 +46,8 @@ func PrefetchingEnabled() bool {
 	}
 	return val == "true"
 }
+
+func LookUpEnvVariable(key string) (val string, ok bool) {
+	LoadEnv()
+	return os.LookupEnv(key)
+}

@@ -7,6 +7,7 @@ import (
 type Item struct {
 	key   Key
 	value interface{}
+	len   int
 
 	// This is the H(p) of the GDS(F) algorithm
 	priority float64

@@ -27,6 +27,7 @@ package groupcache
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"math/rand"
 	"strconv"
@@ -162,6 +163,10 @@ type Group struct {
 	// This cache is used sparingly to maximize the total number
 	// of key/value pairs that can be stored globally.
 	hotCache cache
+
+	// optional admission policy before eviction
+	Admission bool
+	Bouncer   *operator.TinyLFU
 
 	// loadGroup ensures that each key is only fetched once
 	// (either locally or remotely), regardless of the number of
@@ -327,6 +332,15 @@ func (g *Group) lookupCache(key string) (value ByteView, ok bool) {
 	if g.cacheBytes <= 0 {
 		return
 	}
+
+	if g.Admission {
+		if g.Bouncer == nil {
+			g.Bouncer = operator.NewTinyLFU()
+		}
+
+		g.Bouncer.RegisterEntry(key)
+	}
+
 	value, ok = g.mainCache.get(key)
 	if ok {
 		return
@@ -337,6 +351,11 @@ func (g *Group) lookupCache(key string) (value ByteView, ok bool) {
 
 func (g *Group) populateCache(key string, value ByteView, cache *cache) {
 	if g.cacheBytes <= 0 {
+		return
+	}
+
+	if g.Admission {
+		g.populateWithAdmission(key, value, cache)
 		return
 	}
 
@@ -363,20 +382,28 @@ func (g *Group) populateCache(key string, value ByteView, cache *cache) {
 
 func (g *Group) populateWithAdmission(key string, value ByteView, cache *cache) {
 
+	if g.Bouncer == nil {
+		g.Bouncer = operator.NewTinyLFU()
+	}
+	g.Bouncer.RegisterEntry(key)
+
 	decreaseBytes := false
 	var newCacheBytes int64
 
 	// Only if the key already exists the bytes can be decreased
-	if cache.op.ContainsKey(key) {
+	if cache.containsKey(key) {
 
-		vi, _ := cache.op.Get(key)
+		vi, ok := cache.getWithoutBookKeeping(key)
+		if !ok {
+			return
+		}
 
-		if int64(vi.(ByteView).Len()) >= int64(value.Len()) {
+		if int64(vi.Len()) >= int64(value.Len()) {
 			decreaseBytes = true
 		}
 
 		// Does not matter if decreaseBytes is true, in this case it will be negative
-		newCacheBytes = int64(value.Len()) - int64(vi.(ByteView).Len())
+		newCacheBytes = int64(value.Len()) - int64(vi.Len())
 	} else {
 		newCacheBytes = int64(len(key)) + int64(value.Len())
 	}
@@ -386,19 +413,53 @@ func (g *Group) populateWithAdmission(key string, value ByteView, cache *cache) 
 		return
 	}
 
+	fmt.Println("Eviction")
+	if g.evictWithAdmission(key, cache, newCacheBytes) {
+		fmt.Println("adding to cache")
+		cache.add(key, value)
+	}
+}
+
+func (g *Group) evictWithAdmission(key string, cache *cache, ncb int64) (admit bool) {
+	admit = true
+
+	fmt.Println("for")
 	for {
 
 		mainBytes := g.mainCache.bytes()
 		hotBytes := g.hotCache.bytes()
+		fmt.Println("mb: ", mainBytes, " hb: ", hotBytes, " ncb: ", ncb, " available: ", g.cacheBytes)
 
-		if mainBytes+hotBytes+newCacheBytes <= g.cacheBytes {
+		if mainBytes+hotBytes+ncb <= g.cacheBytes || cache.op == nil {
+			fmt.Println("return")
 			return
 		}
 
-		// TODO determine wheter to add new entry
+		fmt.Println("obtain lock")
+		// Obtain lock so we can interact with the operator
+		cache.mu.Lock()
 
+		fmt.Println("get victim")
+		victimKey := cache.op.NextVictim()
+		if victimKey == "" {
+			fmt.Println("return")
+			cache.mu.Unlock()
+			return
+		}
+
+		fmt.Println("test admission: ", key, " vc:", victimKey, "kk")
+		admitEntry := g.Bouncer.AdmitNewKey(key, victimKey)
+
+		if admitEntry {
+			fmt.Println("Admitted")
+			cache.op.RemoveBasedOnPolicy()
+			cache.mu.Unlock()
+		} else {
+			fmt.Println("denied")
+			cache.mu.Unlock()
+			return false
+		}
 	}
-
 }
 
 // CacheType represents a type of cache.
@@ -449,6 +510,30 @@ func (c *cache) stats() CacheStats {
 		Hits:      c.nhit,
 		Evictions: c.nevict,
 	}
+}
+
+func (c *cache) containsKey(key string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.op == nil {
+		return false
+	}
+
+	return c.op.ContainsKey(key)
+}
+
+func (c *cache) getWithoutBookKeeping(key string) (value ByteView, ok bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.op == nil {
+		return
+	}
+	vi, ok := c.op.Get(key)
+	if !ok {
+		return
+	}
+	return vi.(ByteView), true
 }
 
 func (c *cache) add(key string, value ByteView) {

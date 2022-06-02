@@ -42,7 +42,7 @@ var invalidationPools = [][]string{
 	{"blog"},
 }
 
-func NewProxyCache(cacheBytes int64, validate bool, ctype string) *ProxyCache {
+func NewProxyCache(cacheBytes int64, validate bool, ctype string, admission bool) *ProxyCache {
 	pc := ProxyCache{
 		etagger: tagger.NewTagger(invalidationPools),
 		group: NewGroup("pc", cacheBytes, GetterFunc(
@@ -53,9 +53,10 @@ func NewProxyCache(cacheBytes int64, validate bool, ctype string) *ProxyCache {
 		validate:  validate,
 	}
 
-	// Set the cache type
+	// Set the cache type and admission
 	pc.group.mainCache.ctype = ctype
 	pc.group.hotCache.ctype = ctype
+	pc.group.Admission = admission
 
 	return &pc
 }
