@@ -18,22 +18,23 @@ import (
 // TODO env variable?
 var cacheBytes int64 = 64 << 20
 var cacheOperator string = "LRU"
-var admission bool = true
-var logsEnabled bool = true
+var validation bool = true
+var admission bool = false
+var logsEnabled bool = false
 
-var proxyCache = groupcache.NewProxyCache(cacheBytes, true, cacheOperator, admission, logsEnabled)
+var proxyCache = groupcache.NewProxyCache(cacheBytes, validation, cacheOperator, admission, logsEnabled)
 var pf = prefetcher.NewPrefetcher()
 var prefetchingEnabled bool = utils.PrefetchingEnabled()
-
-var proxy = httputil.NewSingleHostReverseProxy(&url.URL{})
-
-func director(r *http.Request) {
-	r.Host = utils.GetHostFromEnv()
-	r.URL.Host = r.Host
-	r.URL.Scheme = "http"
-}
+var host string = utils.GetHostFromEnv()
 
 func serveRequest(w http.ResponseWriter, r *http.Request) {
+
+	var proxy = httputil.NewSingleHostReverseProxy(&url.URL{})
+	proxy.Director = func(r *http.Request) {
+		r.Host = host
+		r.URL.Host = r.Host
+		r.URL.Scheme = "http"
+	}
 
 	if r.Method == http.MethodGet {
 
@@ -48,7 +49,9 @@ func serveRequest(w http.ResponseWriter, r *http.Request) {
 		proxyCache.Get(nil, pw)
 
 	} else {
-		log.Println("Proxying a ", r.Method, " request for ", r.URL.Path)
+		if logsEnabled {
+			log.Println("Proxying a ", r.Method, " request for ", r.URL.Path)
+		}
 		proxy.ServeHTTP(w, r)
 	}
 }
@@ -59,8 +62,6 @@ func main() {
 	addr := flag.String("addr", ":8080", "server address")
 	peers := flag.String("pool", "http://localhost:8080", "server pool list")
 	flag.Parse()
-
-	proxy.Director = director
 
 	p := strings.Split(*peers, ",")
 	proxyCache.RegisterPeerGroup(p[0], p...)

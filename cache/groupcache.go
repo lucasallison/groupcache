@@ -559,9 +559,6 @@ func (c *cache) add(key string, value ByteView) {
 		c.nbytes += int64(value.Len())
 	}
 	c.op.Add(key, value, value.Len())
-
-	// TODO remove
-	log.Println("nbytes: ", c.nbytes)
 }
 
 func (c *cache) get(key string) (value ByteView, ok bool) {

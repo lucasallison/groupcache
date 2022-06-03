@@ -25,11 +25,12 @@ type cachedResponse struct {
 }
 
 type ProxyCache struct {
-	etagger   *tagger.ETagger
-	group     *Group
-	forwarder *forwarder
-	logger    *Logger
-	validate  bool
+	etagger     *tagger.ETagger
+	group       *Group
+	forwarder   *forwarder
+	logger      *Logger
+	logsEnabled bool
+	validate    bool
 }
 
 var invalidationPools = [][]string{
@@ -43,9 +44,10 @@ func NewProxyCache(cacheBytes int64, validate bool, ctype string, admission bool
 			func(ctx Context, key string, dest Sink) error {
 				return nil
 			})),
-		forwarder: NewForwarder(),
-		logger:    NewLogger(logsEnabled),
-		validate:  validate,
+		forwarder:   NewForwarder(),
+		logger:      NewLogger(),
+		logsEnabled: logsEnabled,
+		validate:    validate,
 	}
 
 	// Set the cache type and admission
@@ -98,17 +100,24 @@ func (pc *ProxyCache) Get(ctx context.Context, proxy ProxyWrapper) error {
 
 			value, _ := pc.group.lookupCache(key)
 
-			pc.logger.registerAccess(key, cachehit)
 			err := pc.processCacheHit(r, &cachedBytes, dest, &value)
 
 			if pc.validate {
 				v.validate(r)
 			}
+
+			if pc.logsEnabled {
+				pc.logger.registerAccess(key, cachehit, float64(len(cachedBytes)))
+			}
 			return err
 		}
 
 		/* OBJECT MODIFIED OR CACHE MISS: update cache */
-		pc.logger.registerAccess(key, cachehit)
+
+		if pc.logsEnabled {
+			b, _ := encodeResponse(r)
+			pc.logger.registerAccess(key, cachehit, float64(len(*b)))
+		}
 		return pc.modifyCache(dest, key, r)
 	}
 
