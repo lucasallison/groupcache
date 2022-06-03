@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -34,12 +33,7 @@ type ProxyCache struct {
 }
 
 var invalidationPools = [][]string{
-	{"user"},
-	{"category", "path"},
-	{"path", "category", "skill"},
-	{"skill", "path", "resource"},
-	{"resource", "skill"},
-	{"blog"},
+	{"cache"},
 }
 
 func NewProxyCache(cacheBytes int64, validate bool, ctype string, admission bool) *ProxyCache {
@@ -142,7 +136,6 @@ func (pc *ProxyCache) serveRequest(key string, proxy ProxyWrapper, storedInCache
 */
 func (pc *ProxyCache) modifyCache(dest Sink, key string, r *http.Response) error {
 
-	// TODO should we base the etag on the entire request? not just the body?
 	/* update ETag */
 	pc.etagger.SaveResponseAsTag(key, r)
 
@@ -272,11 +265,9 @@ func writeRecievedResponse(w http.ResponseWriter, res *http.Response) {
 	w.WriteHeader(res.StatusCode)
 	for h, val := range res.Header {
 		for _, v := range val {
-			fmt.Println(h, v)
 			w.Header().Add(h, v)
 		}
 	}
-	fmt.Println(w.Header())
 
 	w.Write(*bodyAsBytes)
 }

@@ -13,10 +13,10 @@ import (
 	"github.com/golang/groupcache/utils"
 )
 
-var cacheBytes int64 = 20000
+// var cacheBytes int64 = 20000
 
 // TODO env variable?
-//var cacheBytes int64 = 64 << 20
+var cacheBytes int64 = 64 << 20
 var cacheOperator string = "LRU"
 var admission bool = true
 
