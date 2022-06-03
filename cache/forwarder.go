@@ -2,7 +2,6 @@ package groupcache
 
 import (
 	"bytes"
-	"fmt"
 	"net/http"
 	"sync"
 
@@ -18,7 +17,7 @@ type forwarder struct {
 	peers *consistenthash.Map
 }
 
-func newForwarder() *forwarder {
+func NewForwarder() *forwarder {
 	return &forwarder{}
 }
 
@@ -28,7 +27,6 @@ func (f *forwarder) Forward(key string, r *http.Request) (res *http.Response, er
 	if !ok {
 		return
 	}
-	fmt.Println(peer)
 
 	bodyAsBytes, err := getBodyAsBytes(&r.Body)
 	if err != nil {

@@ -19,8 +19,9 @@ import (
 var cacheBytes int64 = 64 << 20
 var cacheOperator string = "LRU"
 var admission bool = true
+var logsEnabled bool = true
 
-var proxyCache = groupcache.NewProxyCache(cacheBytes, true, cacheOperator, admission)
+var proxyCache = groupcache.NewProxyCache(cacheBytes, true, cacheOperator, admission, logsEnabled)
 var pf = prefetcher.NewPrefetcher()
 var prefetchingEnabled bool = utils.PrefetchingEnabled()
 

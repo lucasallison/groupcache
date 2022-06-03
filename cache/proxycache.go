@@ -6,7 +6,6 @@ import (
 	"encoding/gob"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/http/httputil"
 
@@ -29,6 +28,7 @@ type ProxyCache struct {
 	etagger   *tagger.ETagger
 	group     *Group
 	forwarder *forwarder
+	logger    *Logger
 	validate  bool
 }
 
@@ -36,14 +36,15 @@ var invalidationPools = [][]string{
 	{"cache"},
 }
 
-func NewProxyCache(cacheBytes int64, validate bool, ctype string, admission bool) *ProxyCache {
+func NewProxyCache(cacheBytes int64, validate bool, ctype string, admission bool, logsEnabled bool) *ProxyCache {
 	pc := ProxyCache{
 		etagger: tagger.NewTagger(invalidationPools),
 		group: NewGroup("pc", cacheBytes, GetterFunc(
 			func(ctx Context, key string, dest Sink) error {
 				return nil
 			})),
-		forwarder: newForwarder(),
+		forwarder: NewForwarder(),
+		logger:    NewLogger(logsEnabled),
 		validate:  validate,
 	}
 
@@ -89,17 +90,15 @@ func (pc *ProxyCache) Get(ctx context.Context, proxy ProxyWrapper) error {
 			return nil
 		}
 
-		modified, cachehit, cachedBytes := true, false, []byte{}
+		cachedBytes := []byte{}
 		dest := AllocatingByteSliceSink(&cachedBytes)
 
 		/* NOT MODIFIED: load from cache */
 		if r.StatusCode == http.StatusNotModified {
 
-			modified = false
-			cachehit = true
 			value, _ := pc.group.lookupCache(key)
 
-			logInfo(cachehit, modified, key)
+			pc.logger.registerAccess(key, cachehit)
 			err := pc.processCacheHit(r, &cachedBytes, dest, &value)
 
 			if pc.validate {
@@ -109,7 +108,7 @@ func (pc *ProxyCache) Get(ctx context.Context, proxy ProxyWrapper) error {
 		}
 
 		/* OBJECT MODIFIED OR CACHE MISS: update cache */
-		logInfo(cachehit, modified, key)
+		pc.logger.registerAccess(key, cachehit)
 		return pc.modifyCache(dest, key, r)
 	}
 
@@ -270,14 +269,4 @@ func writeRecievedResponse(w http.ResponseWriter, res *http.Response) {
 	}
 
 	w.Write(*bodyAsBytes)
-}
-
-func logInfo(cachehit bool, modified bool, key string) {
-	if cachehit {
-		log.Println("CACHE HIT! For ", key)
-	} else if !modified {
-		log.Println("CACHE MISS! Updating cache for ", key)
-	} else {
-		log.Println("MODIFIED! Updating cache for ", key)
-	}
 }
