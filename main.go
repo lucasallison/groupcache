@@ -18,16 +18,23 @@ import (
 // TODO env variables?
 var cacheBytes int64 = 64 << 20
 var cacheOperator string = "LRU"
-var validation bool = true
+var validation bool = false
 var admission bool = false
-var logsEnabled bool = false
+var logsEnabled bool = true
 
 var proxyCache = groupcache.NewProxyCache(cacheBytes, validation, cacheOperator, admission, logsEnabled)
 var pf = prefetcher.NewPrefetcher()
 var prefetchingEnabled bool = utils.PrefetchingEnabled()
 var host string = utils.GetHostFromEnv()
 
+// just for logging
+var PORT string
+
 func serveRequest(w http.ResponseWriter, r *http.Request) {
+
+	if logsEnabled {
+		log.Println("Served by cache on port: ", PORT)
+	}
 
 	var proxy = httputil.NewSingleHostReverseProxy(&url.URL{})
 	proxy.Director = func(r *http.Request) {
@@ -69,11 +76,14 @@ func main() {
 	peers := flag.String("pool", "http://localhost:8080", "server pool list")
 	flag.Parse()
 
+	PORT = *addr
+
 	p := strings.Split(*peers, ",")
 	proxyCache.RegisterPeerGroup(p[0], p...)
 
 	http.HandleFunc("/", serveRequest)
 
 	log.Println("Servering at: http://localhost" + *addr)
-	http.ListenAndServe(*addr, nil)
+	err := http.ListenAndServe(*addr, nil)
+	log.Println("ERROR for cache on port ", PORT, ": ", err.Error())
 }
