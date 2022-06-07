@@ -15,7 +15,7 @@ import (
 
 // var cacheBytes int64 = 20000
 
-// TODO env variable?
+// TODO env variables?
 var cacheBytes int64 = 64 << 20
 var cacheOperator string = "LRU"
 var validation bool = true
@@ -34,6 +34,12 @@ func serveRequest(w http.ResponseWriter, r *http.Request) {
 		r.Host = host
 		r.URL.Host = r.Host
 		r.URL.Scheme = "http"
+	}
+
+	if r.URL.Path == "/control/cache/stats" {
+		proxyCache.LogStats()
+		w.WriteHeader(http.StatusOK)
+		return
 	}
 
 	if r.Method == http.MethodGet {

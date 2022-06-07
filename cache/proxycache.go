@@ -44,10 +44,9 @@ func NewProxyCache(cacheBytes int64, validate bool, ctype string, admission bool
 			func(ctx Context, key string, dest Sink) error {
 				return nil
 			})),
-		forwarder:   NewForwarder(),
-		logger:      NewLogger(),
-		logsEnabled: logsEnabled,
-		validate:    validate,
+		forwarder: NewForwarder(),
+		logger:    NewLogger(logsEnabled),
+		validate:  validate,
 	}
 
 	// Set the cache type and admission
@@ -106,18 +105,15 @@ func (pc *ProxyCache) Get(ctx context.Context, proxy ProxyWrapper) error {
 				v.validate(r)
 			}
 
-			if pc.logsEnabled {
-				pc.logger.registerAccess(key, cachehit, float64(len(cachedBytes)))
-			}
+			pc.logger.registerAccess(key, cachehit, float64(len(cachedBytes)))
 			return err
 		}
 
 		/* OBJECT MODIFIED OR CACHE MISS: update cache */
 
-		if pc.logsEnabled {
-			b, _ := encodeResponse(r)
-			pc.logger.registerAccess(key, cachehit, float64(len(*b)))
-		}
+		b, _ := encodeResponse(r)
+		pc.logger.registerAccess(key, cachehit, float64(len(*b)))
+
 		return pc.modifyCache(dest, key, r)
 	}
 
@@ -187,6 +183,10 @@ func (pc *ProxyCache) processCacheHit(r *http.Response, cachedBytes *[]byte, des
 	}
 
 	return replaceResponse(r, cr)
+}
+
+func (pc *ProxyCache) LogStats() {
+	pc.logger.log()
 }
 
 func replaceWithInternalServerError(r *http.Response) {
