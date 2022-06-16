@@ -12,6 +12,8 @@ type Item struct {
 	// This is the H(p) of the GDS(F) algorithm
 	priority float64
 
+	frequency int
+
 	// The index is needed by update and is maintained by the heap.Interface methods.
 	index int
 }

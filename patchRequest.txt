@@ -1,0 +1,4 @@
+format:
+
+/int64/string/bool/bool/bool
+/cachebytes/cacheOperator/validation/admission/logsEnabled

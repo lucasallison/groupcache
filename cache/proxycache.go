@@ -37,10 +37,10 @@ var invalidationPools = [][]string{
 	{"cache"},
 }
 
-func NewProxyCache(cacheBytes int64, validate bool, ctype string, admission bool, logsEnabled bool) *ProxyCache {
+func NewProxyCache(cacheBytes int64, validate bool, ctype string, admission bool, logsEnabled bool, groupName string) *ProxyCache {
 	pc := ProxyCache{
 		etagger: tagger.NewTagger(invalidationPools),
-		group: NewGroup("pc", cacheBytes, GetterFunc(
+		group: NewGroup(groupName, cacheBytes, GetterFunc(
 			func(ctx Context, key string, dest Sink) error {
 				return nil
 			})),
@@ -110,7 +110,6 @@ func (pc *ProxyCache) Get(ctx context.Context, proxy ProxyWrapper) error {
 		}
 
 		/* OBJECT MODIFIED OR CACHE MISS: update cache */
-
 		b, _ := encodeResponse(r)
 		pc.logger.registerAccess(key, cachehit, float64(len(*b)))
 

@@ -543,7 +543,10 @@ func (c *cache) add(key string, value ByteView) {
 			c.op = operator.NewLFU(0, onEvicted)
 		case "GDSF":
 			log.Println("USING GDSF OPERATOR")
-			c.op = operator.NewGDSF(0, onEvicted)
+			c.op = operator.NewGDSF(0, true, onEvicted)
+		case "GDS":
+			log.Println("USING GDS OPERATOR")
+			c.op = operator.NewGDSF(0, false, onEvicted)
 		default:
 			log.Println("USING LRU OPERATOR")
 			c.op = operator.NewLRU(0, onEvicted)

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strconv"
 	"strings"
 
 	groupcache "github.com/golang/groupcache/cache"
@@ -15,22 +16,65 @@ import (
 
 // var cacheBytes int64 = 20000
 
-// TODO env variables?
 var cacheBytes int64 = 64 << 20
-var cacheOperator string = "LRU"
+var cacheOperator string = "GDSF"
 var validation bool = false
 var admission bool = false
 var logsEnabled bool = true
 
-var proxyCache = groupcache.NewProxyCache(cacheBytes, validation, cacheOperator, admission, logsEnabled)
+// TODO fix this
+var groupName string = "a"
+
+var proxyCache *groupcache.ProxyCache
 var pf = prefetcher.NewPrefetcher()
 var prefetchingEnabled bool = utils.PrefetchingEnabled()
 var host string = utils.GetHostFromEnv()
 
 // just for logging
 var PORT string
+var peers *string
+
+func setProxyCache() {
+	proxyCache = groupcache.NewProxyCache(cacheBytes, validation, cacheOperator, admission, logsEnabled, groupName)
+	p := strings.Split(*peers, ",")
+	proxyCache.RegisterPeerGroup(p[0], p...)
+}
+
+func parsePatchRequest(w http.ResponseWriter, path string) {
+
+	parts := strings.Split(path, "/")
+	parts = parts[1:]
+	cb, err := strconv.Atoi(parts[0])
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	cacheBytes = int64(cb)
+
+	cacheOperator = parts[1]
+	validation = stringToBool(parts[2])
+	admission = stringToBool(parts[3])
+	logsEnabled = stringToBool(parts[4])
+
+	groupName += "a"
+
+	setProxyCache()
+	w.WriteHeader(http.StatusOK)
+}
+
+func stringToBool(s string) bool {
+	if s == "true" {
+		return true
+	}
+	return false
+}
 
 func serveRequest(w http.ResponseWriter, r *http.Request) {
+
+	if r.Method == http.MethodPatch {
+		parsePatchRequest(w, r.URL.Path)
+		return
+	}
 
 	if logsEnabled {
 		log.Println("Served by cache on port: ", PORT)
@@ -73,14 +117,12 @@ func serveRequest(w http.ResponseWriter, r *http.Request) {
 func main() {
 
 	addr := flag.String("addr", ":8080", "server address")
-	peers := flag.String("pool", "http://localhost:8080", "server pool list")
+	peers = flag.String("pool", "http://localhost:8080", "server pool list")
 	flag.Parse()
 
 	PORT = *addr
 
-	p := strings.Split(*peers, ",")
-	proxyCache.RegisterPeerGroup(p[0], p...)
-
+	setProxyCache()
 	http.HandleFunc("/", serveRequest)
 
 	log.Println("Servering at: http://localhost" + *addr)
