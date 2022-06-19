@@ -50,14 +50,15 @@ func (l *Logger) registerAccess(key string, cachehit bool, servedBytes float64) 
 	}
 }
 
-func (l *Logger) log() {
+func (l *Logger) log() string {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
 	hitRatio, byteHitRatio := l.calcRatios()
 
-	log.Printf("HIT RATIO: %.4f", hitRatio)
-	log.Printf("BYTE HIT RATIO: %.4f", byteHitRatio)
+	stats := fmt.Sprintf("HR: %.4f, BHR: %.4f", hitRatio, byteHitRatio)
+	log.Println(stats)
+	return stats
 }
 
 func (l *Logger) calcRatios() (hitRatio float64, byteHitRatio float64) {

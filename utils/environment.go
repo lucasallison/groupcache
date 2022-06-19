@@ -28,6 +28,10 @@ func RetrieveEnvFile() string {
 	return env
 }
 
+func GetEnvVariable(name string) (string, bool) {
+	return os.LookupEnv(name)
+}
+
 func GetHostFromEnv() string {
 	LoadEnv()
 	val, ok := os.LookupEnv("HOST")

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"log"
 	"net/http"
 	"net/http/httputil"
@@ -31,12 +30,12 @@ var prefetchingEnabled bool = utils.PrefetchingEnabled()
 var host string = utils.GetHostFromEnv()
 
 // just for logging
-var PORT string
-var peers *string
+var addr string
+var peers string
 
 func setProxyCache() {
 	proxyCache = groupcache.NewProxyCache(cacheBytes, validation, cacheOperator, admission, logsEnabled, groupName)
-	p := strings.Split(*peers, ",")
+	p := strings.Split(peers, ",")
 	proxyCache.RegisterPeerGroup(p[0], p...)
 }
 
@@ -76,10 +75,6 @@ func serveRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if logsEnabled {
-		log.Println("Served by cache on port: ", PORT)
-	}
-
 	var proxy = httputil.NewSingleHostReverseProxy(&url.URL{})
 	proxy.Director = func(r *http.Request) {
 		r.Host = host
@@ -88,8 +83,9 @@ func serveRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.URL.Path == "/control/cache/stats" {
-		proxyCache.LogStats()
+		stats := proxyCache.LogStats()
 		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(stats))
 		return
 	}
 
@@ -116,16 +112,19 @@ func serveRequest(w http.ResponseWriter, r *http.Request) {
 // example: go run . -addr=:8080 -pool=http://127.0.0.1:8080,http://127.0.0.1:8081,http://127.0.0.1:8082
 func main() {
 
-	addr := flag.String("addr", ":8080", "server address")
-	peers = flag.String("pool", "http://localhost:8080", "server pool list")
-	flag.Parse()
-
-	PORT = *addr
+	addr, ok := utils.GetEnvVariable("addr")
+	if !ok {
+		log.Fatal("addr not in env file")
+	}
+	peers, ok = utils.GetEnvVariable("peers")
+	if !ok {
+		log.Fatal("addr not in env file")
+	}
 
 	setProxyCache()
 	http.HandleFunc("/", serveRequest)
 
-	log.Println("Servering at: http://localhost" + *addr)
-	err := http.ListenAndServe(*addr, nil)
-	log.Println("ERROR for cache on port ", PORT, ": ", err.Error())
+	log.Println("Servering at: http://localhost" + addr)
+	err := http.ListenAndServe(addr, nil)
+	log.Println("ERROR for cache on port ", addr, ": ", err.Error())
 }

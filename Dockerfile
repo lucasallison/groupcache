@@ -20,4 +20,4 @@ COPY ./.env* ./
 
 COPY --from=builder /proxycache .
 
-CMD [ "./proxycache -addr=:8081 -pool=http://127.0.0.1:8081" ]
+CMD [ "./proxycache" ]

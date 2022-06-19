@@ -184,8 +184,8 @@ func (pc *ProxyCache) processCacheHit(r *http.Response, cachedBytes *[]byte, des
 	return replaceResponse(r, cr)
 }
 
-func (pc *ProxyCache) LogStats() {
-	pc.logger.log()
+func (pc *ProxyCache) LogStats() string {
+	return pc.logger.log()
 }
 
 func replaceWithInternalServerError(r *http.Response) {
